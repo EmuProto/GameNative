@@ -496,6 +496,32 @@ class SteamService : Service(), IChallengeUrlChanged {
                 .associate { it.toPair() }
         }
 
+        private fun selectBestArchDepots(depots: Map<Int, DepotInfo>): Map<Int, DepotInfo> {
+            // Determine the system architecture
+            val is64Bit = System.getProperty("os.arch")?.contains("64") == true
+            val preferredArch = if (is64Bit) OSArch.Arch64 else OSArch.Arch32
+
+            // Group depots by their "base" characteristics (everything except architecture)
+            // We want to select the best architecture match for each unique depot configuration
+            val depotGroups = depots.values.groupBy { depot ->
+                // Create a key from non-arch characteristics
+                Triple(depot.dlcAppId, depot.language, depot.osList.toString())
+            }
+
+            return depotGroups.flatMap { (_, depotsInGroup) ->
+                // For each group, select the best architecture match
+                val exactMatch = depotsInGroup.filter { it.osArch == preferredArch }
+                val unknownMatch = depotsInGroup.filter { it.osArch == OSArch.Unknown }
+
+                // Priority: exact arch match > Unknown arch > other arch
+                when {
+                    exactMatch.isNotEmpty() -> exactMatch
+                    unknownMatch.isNotEmpty() -> unknownMatch
+                    else -> depotsInGroup.take(1) // Fallback to first available
+                }
+            }.associateBy { it.depotId }
+        }
+
         fun getAppDirName(app: SteamApp?): String {
             // The folder name, if it got made
             var appName = app?.config?.installDir.orEmpty()
@@ -723,7 +749,10 @@ class SteamService : Service(), IChallengeUrlChanged {
             }
             return getAppInfoOf(appId)?.let { appInfo ->
                 Timber.i("App contains ${appInfo.depots.size} depot(s): ${appInfo.depots.keys}")
-                downloadApp(appId, getDownloadableDepots(appId).keys.toList(), "public")
+                val downloadableDepots = getDownloadableDepots(appId)
+                val bestDepots = selectBestArchDepots(downloadableDepots)
+                Timber.i("Selected ${bestDepots.size} best-matching depot(s) based on architecture: ${bestDepots.keys}")
+                downloadApp(appId, bestDepots.keys.toList(), "public")
             }
         }
 
