@@ -173,6 +173,7 @@ fun ContainerConfigDialog(
         var box64BionicVersions by remember { mutableStateOf(box64BionicVersionsBase) }
         var wowBox64Versions by remember { mutableStateOf(wowBox64VersionsBase) } // reuse existing base list
         var fexcoreVersions by remember { mutableStateOf(fexcoreVersionsBase) }
+        var versionsLoaded by remember { mutableStateOf(false) }
 
         LaunchedEffect(Unit) {
             try {
@@ -203,6 +204,7 @@ fun ContainerConfigDialog(
                 wowBox64Versions = (wowBox64Versions + profilesToDisplay(mgr.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_WOWBOX64))).distinct()
                 fexcoreVersions = (fexcoreVersionsBase + profilesToDisplay(mgr.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_FEXCORE))).distinct()
             } catch (_: Exception) {}
+            versionsLoaded = true
         }
         val frameSyncEntries = stringArrayResource(R.array.frame_sync_entries).toList()
         val languages = listOf(
@@ -318,12 +320,7 @@ fun ContainerConfigDialog(
             val idx = bionicGraphicsDrivers.indexOfFirst { StringUtils.parseIdentifier(it) == config.graphicsDriver }
             mutableIntStateOf(if (idx >= 0) idx else 0)
         }
-        var wrapperVersionIndex by rememberSaveable {
-            val cfg = KeyValueSet(config.graphicsDriverConfig)
-            val selected = cfg.get("version", DefaultVersion.WRAPPER)
-            val idx = wrapperVersions.indexOfFirst { it == selected }
-            mutableIntStateOf(if (idx >= 0) idx else 0)
-        }
+        var wrapperVersionIndex by rememberSaveable { mutableIntStateOf(0) }
         var frameSyncIndex by rememberSaveable {
             val cfg = KeyValueSet(config.graphicsDriverConfig)
             val selected = cfg.get("frameSync", "Normal")
@@ -336,11 +333,17 @@ fun ContainerConfigDialog(
         }
         LaunchedEffect(config.graphicsDriverConfig) {
             val cfg = KeyValueSet(config.graphicsDriverConfig)
-            val ver = cfg.get("version", DefaultVersion.WRAPPER)
-            wrapperVersionIndex = wrapperVersions.indexOfFirst { it == ver }.coerceAtLeast(0)
             val fs = cfg.get("frameSync", "Normal")
             frameSyncIndex = frameSyncEntries.indexOfFirst { it.equals(fs, true) }.let { if (it >= 0) it else frameSyncEntries.indexOf("Normal").coerceAtLeast(0) }
             adrenotoolsTurnipChecked = cfg.get("adrenotoolsTurnip", "1") != "0"
+        }
+
+        LaunchedEffect(versionsLoaded, wrapperVersions, config.graphicsDriverConfig) {
+            if (!versionsLoaded) return@LaunchedEffect
+            val cfg = KeyValueSet(config.graphicsDriverConfig)
+            val ver = cfg.get("version", DefaultVersion.WRAPPER)
+            val newIdx = wrapperVersions.indexOfFirst { it == ver }.coerceAtLeast(0)
+            if (wrapperVersionIndex != newIdx) wrapperVersionIndex = newIdx
         }
 
         var screenSizeIndex by rememberSaveable {
@@ -443,28 +446,17 @@ fun ContainerConfigDialog(
                 config = config.copy(dxwrapperConfig = kvs.toString())
             }
         }
-        var dxvkVersionIndex by rememberSaveable {
-            val rawConfig = config.dxwrapperConfig
-            val kvs = KeyValueSet(rawConfig)
+        var dxvkVersionIndex by rememberSaveable { mutableIntStateOf(0) }
 
-            val configuredVersion = kvs.get("version") // Direct call to get()
-
+        LaunchedEffect(versionsLoaded, dxvkVersionsAll, graphicsDriverIndex, dxWrapperIndex, config.dxwrapperConfig) {
+            if (!versionsLoaded) return@LaunchedEffect
+            val kvs = KeyValueSet(config.dxwrapperConfig)
+            val configuredVersion = kvs.get("version")
             val (_, effectiveList) = currentDxvkContext()
-
-            // Find index where the parsed display string matches the configured version
-            val foundIndex = effectiveList.indexOfFirst {
-                val parsedDisplay = StringUtils.parseIdentifier(it)
-                val match = parsedDisplay == configuredVersion
-                match
-            }
-
-            // Use found index, or fallback to the app's default DXVK version, or 0 if not found
-            val defaultVersion = DefaultVersion.DXVK
-            val defaultIndex = effectiveList.indexOfFirst {
-                StringUtils.parseIdentifier(it) == defaultVersion
-            }.coerceAtLeast(0)
-            val finalIndex = if (foundIndex >= 0) foundIndex else defaultIndex
-            mutableIntStateOf(finalIndex)
+            val foundIndex = effectiveList.indexOfFirst { StringUtils.parseIdentifier(it) == configuredVersion }
+            val defaultIndex = effectiveList.indexOfFirst { StringUtils.parseIdentifier(it) == DefaultVersion.DXVK }.coerceAtLeast(0)
+            val newIdx = if (foundIndex >= 0) foundIndex else defaultIndex
+            if (dxvkVersionIndex != newIdx) dxvkVersionIndex = newIdx
         }
         // When DXVK version defaults to an 'async' build, enable DXVK_ASYNC by default
         LaunchedEffect(dxvkVersionIndex, graphicsDriverIndex, dxWrapperIndex) {

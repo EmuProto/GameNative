@@ -94,6 +94,7 @@ import com.skydoves.landscapist.coil.CoilImage
 import app.gamenative.utils.SteamUtils
 import com.winlator.container.ContainerData
 import com.winlator.xenvironment.ImageFsInstaller
+import com.winlator.fexcore.FEXCoreManager
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -217,6 +218,15 @@ fun AppScreen(
     val showEditConfigDialog: () -> Unit = {
         val container = ContainerUtils.getOrCreateContainer(context, appId)
         containerData = ContainerUtils.toContainerData(container)
+        // Seed FEXCore UI fields from actual per-container config file so values show up when editing
+        try {
+            val fex = FEXCoreManager.readFEXCoreSettings(context, container)
+            containerData = containerData.copy(
+                fexcoreTSOMode = fex[0],
+                fexcoreX87Mode = fex[1],
+                fexcoreMultiBlock = fex[2],
+            )
+        } catch (_: Throwable) { }
         showConfigDialog = true
     }
 
