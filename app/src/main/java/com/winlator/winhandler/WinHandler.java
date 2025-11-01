@@ -786,8 +786,6 @@ public class WinHandler {
         float rCurve = (float)Math.sqrt(rawR);
         int lAxis = Math.round(lCurve * 65_534f) - 32_767;  // 0 → -32 767, 1 → 32 767
         int rAxis = Math.round(rCurve * 65_534f) - 32_767;
-        if (lAxis == -32_767 && state.isPressed(ExternalController.IDX_BUTTON_L2)) lAxis = 32_767;
-        if (rAxis == -32_767 && state.isPressed(ExternalController.IDX_BUTTON_R2)) rAxis = 32_767;
         buffer.putShort((short)lAxis);
         buffer.putShort((short)rAxis);
         // --- Buttons and D-Pad are perfect. No changes here. ---
