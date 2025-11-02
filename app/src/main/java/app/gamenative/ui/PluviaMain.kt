@@ -3,8 +3,6 @@ package app.gamenative.ui
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
-import androidx.activity.OnBackPressedDispatcher
-import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
@@ -17,7 +15,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.BlendMode.Companion.Screen
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.zIndex
@@ -67,7 +64,6 @@ import app.gamenative.ui.screen.login.UserLoginScreen
 import app.gamenative.ui.screen.settings.SettingsScreen
 import app.gamenative.ui.screen.xserver.XServerScreen
 import app.gamenative.ui.theme.PluviaTheme
-import app.gamenative.utils.ContainerMigrator
 import app.gamenative.utils.ContainerUtils
 import app.gamenative.utils.GameFeedbackUtils
 import app.gamenative.utils.IntentLaunchManager
@@ -80,6 +76,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.GlobalScope;
 import timber.log.Timber
 import java.util.Date
 import java.util.EnumSet
@@ -933,11 +930,15 @@ fun preLaunchApp(
             ).await()
         }
         setLoadingMessage("Installing...")
-        val imageFsInstallSuccess =
+        // Run ImageFS installation on dedicated background thread to avoid ANR
+        val imageFsInstallSuccess = kotlinx.coroutines.runBlocking(Dispatchers.IO) {
             ImageFsInstaller.installIfNeededFuture(context, context.assets, container) { progress ->
-                // Log.d("XServerScreen", "$progress")
-                setLoadingProgress(progress / 100f)
+                // Update progress on main thread
+                GlobalScope.launch(Dispatchers.Main) {
+                    setLoadingProgress(progress / 100f)
+                }
             }.get()
+        }
         setLoadingMessage("Loading...")
         setLoadingProgress(-1f)
 

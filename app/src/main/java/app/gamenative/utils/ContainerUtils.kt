@@ -8,7 +8,6 @@ import app.gamenative.service.SteamService
 import com.winlator.container.Container
 import com.winlator.container.ContainerData
 import com.winlator.container.ContainerManager
-import com.winlator.core.DefaultVersion
 import com.winlator.core.FileUtils
 import com.winlator.core.WineRegistryEditor
 import com.winlator.core.WineThemeManager
@@ -18,7 +17,7 @@ import com.winlator.inputcontrols.InputControlsManager
 import com.winlator.winhandler.WinHandler.PreferredInputApi
 import java.io.File
 import kotlin.Boolean
-import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.json.JSONArray
@@ -464,8 +463,10 @@ object ContainerUtils {
         val data = JSONObject()
         data.put("name", "container_$containerId")
 
-        // Create the actual container
-        val container = containerManager.createContainerFuture(containerId, data).get()
+        // Run container creation on dedicated background thread to avoid ANR
+        val container = runBlocking(Dispatchers.IO) {
+            containerManager.createContainerFuture(containerId, data).get()
+        }
 
         // Initialize container with default/custom config
         val containerData = if (customConfig != null) {
