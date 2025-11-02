@@ -933,10 +933,7 @@ fun preLaunchApp(
         // Run ImageFS installation on dedicated background thread to avoid ANR
         val imageFsInstallSuccess = kotlinx.coroutines.runBlocking(Dispatchers.IO) {
             ImageFsInstaller.installIfNeededFuture(context, context.assets, container) { progress ->
-                // Update progress on main thread
-                GlobalScope.launch(Dispatchers.Main) {
-                    setLoadingProgress(progress / 100f)
-                }
+                setLoadingProgress(progress / 100f)
             }.get()
         }
         setLoadingMessage("Loading...")
