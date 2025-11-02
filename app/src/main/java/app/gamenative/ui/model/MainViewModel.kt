@@ -7,7 +7,6 @@ import androidx.lifecycle.viewModelScope
 import app.gamenative.PluviaApp
 import app.gamenative.PrefManager
 import app.gamenative.data.GameProcessInfo
-import app.gamenative.data.LibraryItem
 import app.gamenative.di.IAppTheme
 import app.gamenative.enums.AppTheme
 import app.gamenative.enums.LoginResult
@@ -131,6 +130,14 @@ class MainViewModel @Inject constructor(
                 _state.update { it.copy(paletteStyle = value) }
             }
         }
+
+        _state.update {
+            it.copy(
+                isSteamConnected = SteamService.isConnected,
+                hasCrashedLastStart = PrefManager.recentlyCrashed,
+                launchedAppId = "",
+            )
+        }
     }
 
     override fun onCleared() {
@@ -140,16 +147,6 @@ class MainViewModel @Inject constructor(
         PluviaApp.events.off<SteamEvent.Disconnected, Unit>(onSteamDisconnected)
         PluviaApp.events.off<SteamEvent.LogonEnded, Unit>(onLogonEnded)
         PluviaApp.events.off<SteamEvent.LoggedOut, Unit>(onLoggedOut)
-    }
-
-    init {
-        _state.update {
-            it.copy(
-                isSteamConnected = SteamService.isConnected,
-                hasCrashedLastStart = PrefManager.recentlyCrashed,
-                launchedAppId = "",
-            )
-        }
     }
 
     fun setTheme(value: AppTheme) {
