@@ -1049,11 +1049,11 @@ fun preLaunchApp(
             SyncResult.PendingOperations -> {
                 Timber.i(
                     "Pending remote operations:${
-                        postSyncInfo.pendingRemoteOperations.map { pro ->
+                        postSyncInfo.pendingRemoteOperations.joinToString("\n") { pro ->
                             "\n\tmachineName: ${pro.machineName}" +
-                                "\n\ttimestamp: ${Date(pro.timeLastUpdated * 1000L)}" +
-                                "\n\toperation: ${pro.operation}"
-                        }.joinToString("\n")
+                            "\n\ttimestamp: ${Date(pro.timeLastUpdated * 1000L)}" +
+                            "\n\toperation: ${pro.operation}"
+                        }
                     }",
                 )
                 if (postSyncInfo.pendingRemoteOperations.size == 1) {
