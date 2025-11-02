@@ -105,7 +105,7 @@ public abstract class ImageFsInstaller {
                 });
             }
 
-            else {
+            else if (downloaded.exists()){
                 final long contentLength = (long) (FileUtils.getSize(downloaded) * (100.0f / compressionRatio));
                 AtomicLong totalSizeRef = new AtomicLong();
                 Log.d("Extraction", "extracting " + imagefsFile);

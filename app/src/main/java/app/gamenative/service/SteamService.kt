@@ -791,6 +791,29 @@ class SteamService : Service(), IChallengeUrlChanged {
             }
         }
 
+        suspend fun fetchFileWithFallback(
+            fileName: String,
+            dest: File,
+            context: Context,
+            onProgress: (Float) -> Unit
+        ) = withContext(Dispatchers.IO) {
+            val primaryUrl = "https://downloads.gamenative.app/$fileName"
+            val fallbackUrl = "https://pub-9fcd5294bd0d4b85a9d73615bf98f3b5.r2.dev/$fileName"
+            try {
+                fetchFile(primaryUrl, dest, onProgress)
+            } catch (e: Exception) {
+                Timber.w(e, "Primary download failed; retrying with fallback URL")
+                try {
+                    fetchFile(fallbackUrl, dest, onProgress)
+                } catch (e2: Exception) {
+                    withContext(Dispatchers.Main) {
+                        val msg = "Download failed with ${e2.message ?: e2.toString()}. Please disable VPN or try a different network."
+                        android.widget.Toast.makeText(context.applicationContext, msg, android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        }
+
         /** copyTo with progress callback */
         private inline fun InputStream.copyTo(
             out: OutputStream,
@@ -818,11 +841,10 @@ class SteamService : Service(), IChallengeUrlChanged {
             if (variant == Container.BIONIC){
                 val dest = File(instance!!.filesDir, "imagefs_bionic.txz")
                 Timber.d("Downloading imagefs_bionic to " + dest.toString());
-                fetchFile("https://downloads.gamenative.app/imagefs_bionic.txz", dest, onDownloadProgress)
+                fetchFileWithFallback("imagefs_bionic.txz", dest, context, onDownloadProgress)
             } else {
                 Timber.d("Downloading imagefs_gamenative to " + File(instance!!.filesDir, "imagefs_gamenative.txz"));
-                fetchFile("https://downloads.gamenative.app/imagefs_gamenative.txz",
-                    File(instance!!.filesDir, "imagefs_gamenative.txz"), onDownloadProgress)
+                fetchFileWithFallback("imagefs_gamenative.txz", File(instance!!.filesDir, "imagefs_gamenative.txz"), context, onDownloadProgress)
             }
         }
 
@@ -834,7 +856,7 @@ class SteamService : Service(), IChallengeUrlChanged {
             Timber.i("imagefs will be downloaded")
             val dest = File(instance!!.filesDir, "imagefs_patches_gamenative.tzst")
             Timber.d("Downloading imagefs_patches_gamenative.tzst to " + dest.toString());
-            fetchFile("https://downloads.gamenative.app/imagefs_patches_gamenative.tzst", dest, onDownloadProgress)
+            fetchFileWithFallback("imagefs_patches_gamenative.tzst", dest, context, onDownloadProgress)
         }
 
         fun downloadSteam(
@@ -845,7 +867,7 @@ class SteamService : Service(), IChallengeUrlChanged {
             Timber.i("imagefs will be downloaded")
             val dest = File(instance!!.filesDir, "steam.tzst")
             Timber.d("Downloading steam.tzst to " + dest.toString());
-            fetchFile("https://downloads.gamenative.app/steam.tzst", dest, onDownloadProgress)
+            fetchFileWithFallback("steam.tzst", dest, context, onDownloadProgress)
         }
 
         fun downloadApp(
