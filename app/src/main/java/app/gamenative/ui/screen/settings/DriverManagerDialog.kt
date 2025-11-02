@@ -189,71 +189,32 @@ fun DriverManagerDialog(open: Boolean, onDismiss: () -> Unit) {
             downloadBytes = 0L
             totalBytes = -1L
             try {
-                val driverUrl = "https://downloads.gamenative.app/drivers/$driverFileName"
-                Timber.d("DriverManagerDialog: Starting download $driverUrl")
-                val client = OkHttpClient.Builder()
-                    .connectTimeout(30, TimeUnit.SECONDS)
-                    .readTimeout(60, TimeUnit.SECONDS)
-                    .writeTimeout(30, TimeUnit.SECONDS)
-                    .build()
-
-                // Create a temporary file and stream the download with progress
-                val tempFile = withContext(Dispatchers.IO) {
-                    val tmp = File.createTempFile("driver", ".zip", ctx.cacheDir)
-
-                    val request = Request.Builder().url(driverUrl).build()
-
-                    Net.http.newCall(request).execute().use { resp ->
-                        if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
-
-                        val body = resp.body ?: throw IOException("empty body")
-                        val total = body.contentLength()
-                        withContext(Dispatchers.Main) {
-                            totalBytes      = total
-                            downloadBytes   = 0L
-                            downloadProgress = 0f
-                        }
-
-                        body.byteStream().use { input ->
-                            tmp.outputStream().use { output ->
-                                val buf = ByteArray(32 * 1024)   // 32 KB
-                                var read: Int
-                                var copied = 0L
-                                var lastUpdate = 0L
-
-                                while (input.read(buf).also { read = it } != -1) {
-                                    output.write(buf, 0, read)
-                                    copied += read
-
-                                    // progress every ~300 ms
-                                    val now = System.currentTimeMillis()
-                                    if (total > 0 && now - lastUpdate > 300) {
-                                        lastUpdate = now
-                                        withContext(Dispatchers.Main) {
-                                            downloadBytes = copied
-                                            downloadProgress = copied.toFloat() / total
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        withContext(Dispatchers.Main) {
-                            downloadBytes   = total
-                            downloadProgress = 1f
-                        }
+                Timber.d("DriverManagerDialog: Starting download drivers/$driverFileName")
+                val destFile = File(ctx.cacheDir, driverFileName)
+                var lastUpdate = 0L
+                // Use shared downloader with automatic domain fallback and built-in .part handling
+                SteamService.fetchFileWithFallback(
+                    fileName = "drivers/$driverFileName",
+                    dest = destFile,
+                    context = ctx
+                ) { progress ->
+                    val now = System.currentTimeMillis()
+                    if (now - lastUpdate > 300) {
+                        lastUpdate = now
+                        val clamped = progress.coerceIn(0f, 1f)
+                        scope.launch(Dispatchers.Main) { downloadProgress = clamped }
                     }
-                    tmp
                 }
                 // Mark download complete before installing
                 val downloadDurationMs = System.currentTimeMillis() - overallStart
-                Timber.d("DriverManagerDialog: Download complete in ${downloadDurationMs}ms (${formatBytes(downloadBytes)})")
-                withContext(Dispatchers.Main) { isDownloading = false; downloadProgress = 1f }
+                val downloadedSize = destFile.length()
+                Timber.d("DriverManagerDialog: Download complete in ${downloadDurationMs}ms (${formatBytes(downloadedSize)})")
+                withContext(Dispatchers.Main) { isDownloading = false; downloadProgress = 1f; downloadBytes = downloadedSize }
 
                 // Install the driver from the temporary file
                 withContext(Dispatchers.Main) { isInstalling = true }
                 Timber.d("DriverManagerDialog: Starting install")
-                val uri = Uri.fromFile(tempFile)
+                val uri = Uri.fromFile(destFile)
                 val installStart = System.currentTimeMillis()
                 val res = withContext(Dispatchers.IO) { handlePickedUri(ctx, uri) }
                 val installDurationMs = System.currentTimeMillis() - installStart
@@ -267,7 +228,7 @@ fun DriverManagerDialog(open: Boolean, onDismiss: () -> Unit) {
 
                 // Delete the temporary file
                 withContext(Dispatchers.IO) {
-                    tempFile.delete()
+                    destFile.delete()
                 }
             } catch (e: SocketTimeoutException) {
                 val errorMessage = "Connection timed out. Please check your network and try again."
@@ -404,11 +365,16 @@ fun DriverManagerDialog(open: Boolean, onDismiss: () -> Unit) {
                                         }
                                     }
                                 } else {
-                                    Row(
-                                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Text(text = "Downloading...")
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        LinearProgressIndicator() // indeterminate when total unknown
+                                        Row(
+                                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(top = 4.dp)
+                                        ) {
+                                            Text(text = "Downloading...")
+                                        }
                                     }
                                 }
                             }

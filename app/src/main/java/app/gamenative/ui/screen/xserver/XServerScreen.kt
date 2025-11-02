@@ -107,6 +107,7 @@ import java.nio.file.Files
 import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
 import java.nio.file.StandardCopyOption.REPLACE_EXISTING
+import java.util.Arrays
 import java.util.Locale
 import kotlin.io.path.name
 import com.winlator.PrefManager as WinlatorPrefManager
@@ -1570,20 +1571,22 @@ private fun applyGeneralPatches(
         FileUtils.delete(File(rootDir, "/opt/apps"))
         val downloaded = File(imageFs.getFilesDir(), "imagefs_patches_gamenative.tzst")
         Timber.i("Extracting imagefs_patches_gamenative.tzst")
-        TarCompressorUtils.extract(
-            TarCompressorUtils.Type.ZSTD,
-            downloaded,
-            rootDir,
-            onExtractFileListener,
-        );
-//
-//        TarCompressorUtils.extract(
-//            TarCompressorUtils.Type.ZSTD,
-//            context.assets,
-//            "imagefs_patches_gamenative.tzst",
-//            rootDir,
-//            onExtractFileListener,
-//        )
+        if (Arrays.asList<String?>(*context.getAssets().list("")).contains("imagefs_patches_gamenative.tzst") == true) {
+            TarCompressorUtils.extract(
+                TarCompressorUtils.Type.ZSTD,
+                context.assets,
+                "imagefs_patches_gamenative.tzst",
+                rootDir,
+                onExtractFileListener,
+            )
+        } else if (downloaded.exists()){
+            TarCompressorUtils.extract(
+                TarCompressorUtils.Type.ZSTD,
+                downloaded,
+                rootDir,
+                onExtractFileListener,
+            );
+        }
     } else {
         Timber.i("Extracting container_pattern_common.tzst")
         TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context.assets, "container_pattern_common.tzst", rootDir);
