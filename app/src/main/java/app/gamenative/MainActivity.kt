@@ -35,6 +35,7 @@ import app.gamenative.service.SteamService
 import app.gamenative.ui.PluviaMain
 import app.gamenative.ui.enums.Orientation
 import app.gamenative.utils.AnimatedPngDecoder
+import app.gamenative.utils.ContainerUtils
 import app.gamenative.utils.IconDecoder
 import app.gamenative.utils.IntentLaunchManager
 import com.posthog.PostHog
@@ -118,6 +119,8 @@ class MainActivity : ComponentActivity() {
 
         // Initialize the controller management system
         ControllerManager.getInstance().init(getApplicationContext());
+
+        ContainerUtils.setContainerDefaults(applicationContext)
 
         handleLaunchIntent(intent)
 

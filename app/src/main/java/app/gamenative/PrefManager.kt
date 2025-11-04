@@ -208,7 +208,7 @@ object PrefManager {
 
     private val DXWRAPPER_CONFIG = stringPreferencesKey("dxwrapperConfig")
     var dxWrapperConfig: String
-        get() = getPref(DXWRAPPER_CONFIG, "")
+        get() = getPref(DXWRAPPER_CONFIG, Container.DEFAULT_DXWRAPPERCONFIG)
         set(value) {
             setPref(DXWRAPPER_CONFIG, value)
         }
@@ -247,7 +247,7 @@ object PrefManager {
         set(value) {
             setPref(LAUNCH_REAL_STEAM, value)
         }
-        
+
     private val FORCE_DLC = booleanPreferencesKey("force_dlc")
     var forceDlc: Boolean
         get() = getPref(FORCE_DLC, false)
