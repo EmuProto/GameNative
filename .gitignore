@@ -59,3 +59,4 @@ app/keystores/*
 # virglrenderer
 *.pyc
 __pycache__/
+resign.keystore

@@ -9,6 +9,7 @@ plugins {
     alias(libs.plugins.jetbrains.serialization)
     alias(libs.plugins.kotlinter)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.secrets.gradle)
 }
 
 val keystorePropertiesFile = rootProject.file("app/keystores/keystore.properties")
@@ -54,10 +55,13 @@ android {
         versionName = "0.5.0"
 
         buildConfigField("boolean", "GOLD", "false")
-        buildConfigField("String", "POSTHOG_API_KEY", "\"$posthogApiKey\"")
-        buildConfigField("String", "POSTHOG_HOST", "\"$posthogHost\"")
-        buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
-        buildConfigField("String", "SUPABASE_KEY", "\"$supabaseKey\"")
+        fun secret(name: String) =
+            project.findProperty(name) as String? ?: System.getenv(name) ?: ""
+
+        buildConfigField("String", "POSTHOG_API_KEY", "\"${secret("POSTHOG_API_KEY")}\"")
+        buildConfigField("String", "POSTHOG_HOST",  "\"${secret("POSTHOG_HOST")}\"")
+        buildConfigField("String", "SUPABASE_URL",  "\"${secret("SUPABASE_URL")}\"")
+        buildConfigField("String", "SUPABASE_KEY",  "\"${secret("SUPABASE_KEY")}\"")
         val iconValue = "@mipmap/ic_launcher"
         val iconRoundValue = "@mipmap/ic_launcher_round"
         manifestPlaceholders.putAll(
