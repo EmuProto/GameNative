@@ -150,6 +150,13 @@ object PrefManager {
             setPref(GRAPHICS_DRIVER_VERSION, value)
         }
 
+    private val GRAPHICS_DRIVER_CONFIG = stringPreferencesKey("graphics_driver_config")
+    var graphicsDriverConfig: String
+        get() = getPref(GRAPHICS_DRIVER_CONFIG, Container.DEFAULT_GRAPHICSDRIVERCONFIG)
+        set(value) {
+            setPref(GRAPHICS_DRIVER_CONFIG, value)
+        }
+
     private val CONTAINER_VARIANT = stringPreferencesKey("container_variant")
     var containerVariant: String
         get() = getPref(CONTAINER_VARIANT, Container.DEFAULT_VARIANT)

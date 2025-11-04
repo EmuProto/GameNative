@@ -73,6 +73,7 @@ object ContainerUtils {
             envVars = PrefManager.envVars,
             graphicsDriver = PrefManager.graphicsDriver,
             graphicsDriverVersion = PrefManager.graphicsDriverVersion,
+            graphicsDriverConfig = PrefManager.graphicsDriverConfig,
             dxwrapper = PrefManager.dxWrapper,
             dxwrapperConfig = PrefManager.dxWrapperConfig,
             audioDriver = PrefManager.audioDriver,
@@ -119,6 +120,7 @@ object ContainerUtils {
         PrefManager.envVars = containerData.envVars
         PrefManager.graphicsDriver = containerData.graphicsDriver
         PrefManager.graphicsDriverVersion = containerData.graphicsDriverVersion
+        PrefManager.graphicsDriverConfig = containerData.graphicsDriverConfig
         PrefManager.dxWrapper = containerData.dxwrapper
         PrefManager.dxWrapperConfig = containerData.dxwrapperConfig
         PrefManager.audioDriver = containerData.audioDriver
@@ -503,6 +505,7 @@ object ContainerUtils {
                 cpuListWoW64 = PrefManager.cpuListWoW64,
                 graphicsDriver = PrefManager.graphicsDriver,
                 graphicsDriverVersion = PrefManager.graphicsDriverVersion,
+                graphicsDriverConfig = PrefManager.graphicsDriverConfig,
                 dxwrapper = initialDxWrapper,
                 dxwrapperConfig = PrefManager.dxWrapperConfig,
                 audioDriver = PrefManager.audioDriver,
