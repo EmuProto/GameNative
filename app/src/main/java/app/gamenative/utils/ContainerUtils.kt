@@ -10,20 +10,19 @@ import com.winlator.container.ContainerData
 import com.winlator.container.ContainerManager
 import com.winlator.core.DefaultVersion
 import com.winlator.core.FileUtils
+import com.winlator.core.GPUInformation
 import com.winlator.core.WineRegistryEditor
 import com.winlator.core.WineThemeManager
 import com.winlator.fexcore.FEXCoreManager
 import com.winlator.inputcontrols.ControlsProfile
 import com.winlator.inputcontrols.InputControlsManager
 import com.winlator.winhandler.WinHandler.PreferredInputApi
-import java.io.File
-import kotlin.Boolean
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.json.JSONArray
 import org.json.JSONObject
 import timber.log.Timber
+import java.io.File
 
 object ContainerUtils {
     data class GpuInfo(
@@ -31,6 +30,27 @@ object ContainerUtils {
         val vendorId: Int,
         val name: String,
     )
+
+    fun setContainerDefaults(context: Context){
+        // Override default driver and DXVK version based on Turnip capability
+        if (GPUInformation.isTurnipCapable(context)) {
+            DefaultVersion.VARIANT = Container.GLIBC
+            DefaultVersion.DEFAULT_GRAPHICS_DRIVER = "turnip"
+            DefaultVersion.DXVK = "2.6.1-gplasync"
+            DefaultVersion.VKD3D = "2.14.1"
+            DefaultVersion.WRAPPER = "turnip25.3.0_R3_Auto"
+            DefaultVersion.STEAM_TYPE = Container.STEAM_TYPE_NORMAL
+            DefaultVersion.ASYNC_CACHE = "1"
+        } else {
+            DefaultVersion.VARIANT = Container.BIONIC
+            DefaultVersion.WINE_VERSION = "proton-9.0-arm64ec"
+            DefaultVersion.DEFAULT_GRAPHICS_DRIVER = "Wrapper-leegao"
+            DefaultVersion.DXVK = "async-1.10.3"
+            DefaultVersion.VKD3D = "2.6"
+            DefaultVersion.STEAM_TYPE = Container.STEAM_TYPE_LIGHT
+            DefaultVersion.ASYNC_CACHE = "0"
+        }
+    }
 
     fun getGPUCards(context: Context): Map<Int, GpuInfo> {
         val gpuNames = JSONArray(FileUtils.readString(context, "gpu_cards.json"))
@@ -53,6 +73,7 @@ object ContainerUtils {
             envVars = PrefManager.envVars,
             graphicsDriver = PrefManager.graphicsDriver,
             graphicsDriverVersion = PrefManager.graphicsDriverVersion,
+            graphicsDriverConfig = PrefManager.graphicsDriverConfig,
             dxwrapper = PrefManager.dxWrapper,
             dxwrapperConfig = PrefManager.dxWrapperConfig,
             audioDriver = PrefManager.audioDriver,
@@ -80,7 +101,6 @@ object ContainerUtils {
 			fexcoreX87Mode = PrefManager.fexcoreX87Mode,
 			fexcoreMultiBlock = PrefManager.fexcoreMultiBlock,
 			renderer = PrefManager.renderer,
-
 			csmt = PrefManager.csmt,
             videoPciDeviceID = PrefManager.videoPciDeviceID,
             offScreenRenderingMode = PrefManager.offScreenRenderingMode,
@@ -100,6 +120,7 @@ object ContainerUtils {
         PrefManager.envVars = containerData.envVars
         PrefManager.graphicsDriver = containerData.graphicsDriver
         PrefManager.graphicsDriverVersion = containerData.graphicsDriverVersion
+        PrefManager.graphicsDriverConfig = containerData.graphicsDriverConfig
         PrefManager.dxWrapper = containerData.dxwrapper
         PrefManager.dxWrapperConfig = containerData.dxwrapperConfig
         PrefManager.audioDriver = containerData.audioDriver
@@ -484,6 +505,7 @@ object ContainerUtils {
                 cpuListWoW64 = PrefManager.cpuListWoW64,
                 graphicsDriver = PrefManager.graphicsDriver,
                 graphicsDriverVersion = PrefManager.graphicsDriverVersion,
+                graphicsDriverConfig = PrefManager.graphicsDriverConfig,
                 dxwrapper = initialDxWrapper,
                 dxwrapperConfig = PrefManager.dxWrapperConfig,
                 audioDriver = PrefManager.audioDriver,

@@ -39,22 +39,6 @@ public class ContainerManager {
 
     public ContainerManager(Context context) {
         this.context = context;
-        // Override default driver and DXVK version based on Turnip capability
-        if (GPUInformation.isTurnipCapable(context)) {
-            DefaultVersion.VARIANT = Container.GLIBC;
-            Container.DEFAULT_GRAPHICS_DRIVER = "turnip";
-            DefaultVersion.DXVK = "2.6.1-gplasync";
-            DefaultVersion.VKD3D = "2.14.1";
-            DefaultVersion.WRAPPER = "turnip25.3.0_R3_Auto";
-            DefaultVersion.STEAM_TYPE = STEAM_TYPE_NORMAL;
-        } else {
-            DefaultVersion.VARIANT = Container.BIONIC;
-            DefaultVersion.WINE_VERSION = "proton-9.0-arm64ec";
-            Container.DEFAULT_GRAPHICS_DRIVER = "Wrapper-leegao";
-            DefaultVersion.DXVK = "async-1.10.3";
-            DefaultVersion.VKD3D = "2.6";
-            DefaultVersion.STEAM_TYPE = STEAM_TYPE_LIGHT;
-        }
         File rootDir = ImageFs.find(context).getRootDir();
         homeDir = new File(rootDir, "home");
         loadContainers();

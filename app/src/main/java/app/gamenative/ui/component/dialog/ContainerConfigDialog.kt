@@ -470,16 +470,21 @@ fun ContainerConfigDialog(
                 if (isVortekLike) "async-1.10.3" else StringUtils.parseIdentifier(dxvkVersionsAll.getOrNull(dxvkVersionIndex) ?: DefaultVersion.DXVK)
             } else selectedVersion
             val envSet = EnvVars(config.envVars)
-            if (version.contains("async", ignoreCase = true)) {
-                envSet.put("DXVK_ASYNC", "1")
-            } else {
-                envSet.remove("DXVK_ASYNC")
-            }
             // Update dxwrapperConfig version only when DXVK wrapper selected
             val wrapperIsDxvk = StringUtils.parseIdentifier(dxWrappers[dxWrapperIndex]) == "dxvk"
             val kvs = KeyValueSet(config.dxwrapperConfig)
             if (wrapperIsDxvk) {
                 kvs.put("version", version)
+            }
+            if (version.contains("async", ignoreCase = true)) {
+                kvs.put("async", "1")
+            } else {
+                kvs.put("async", "0")
+            }
+            if (version.contains("gplasync", ignoreCase = true)) {
+                kvs.put("asyncCache", "1")
+            } else {
+                kvs.put("asyncCache", "0")
             }
             config = config.copy(envVars = envSet.toString(), dxwrapperConfig = kvs.toString())
         }
@@ -775,11 +780,10 @@ fun ContainerConfigDialog(
                                                     listOf("0", "512", "1024", "2048", "4096").indexOf("4096").coerceAtLeast(0)
 
                                                 // If transitioning from GLIBC -> BIONIC, set Box64 to default and DXVK to async-1.10.3
-                                                val envSet = EnvVars(config.envVars).apply {
-                                                    put("DXVK_ASYNC", "1")
-                                                }
                                                 val currentConfig = KeyValueSet(config.dxwrapperConfig)
                                                 currentConfig.put("version", "async-1.10.3")
+                                                currentConfig.put("async", "1")
+                                                currentConfig.put("asyncCache", "0")
                                                 config = config.copy(dxwrapperConfig = currentConfig.toString())
 
                                                 config = config.copy(
@@ -790,7 +794,6 @@ fun ContainerConfigDialog(
                                                     graphicsDriverConfig = newCfg.toString(),
                                                     box64Version = "0.3.7",
                                                     dxwrapperConfig = currentConfig.toString(),
-                                                    envVars = envSet.toString(),
                                                 )
                                             }
                                         },
@@ -1194,10 +1197,10 @@ fun ContainerConfigDialog(
                                                 val currentConfig = KeyValueSet(config.dxwrapperConfig)
                                                 currentConfig.put("version", version)
                                                 val envVarsSet = EnvVars(config.envVars)
-                                                if (version.contains("async", ignoreCase = true)) envVarsSet.put(
-                                                    "DXVK_ASYNC",
-                                                    "1"
-                                                ) else envVarsSet.remove("DXVK_ASYNC")
+                                                if (version.contains("async", ignoreCase = true)) currentConfig.put("async", "1")
+                                                else currentConfig.put("async", "0")
+                                                if (version.contains("gplasync", ignoreCase = true)) currentConfig.put("asyncCache", "1")
+                                                else currentConfig.put("asyncCache", "0")
                                                 config =
                                                     config.copy(dxwrapperConfig = currentConfig.toString(), envVars = envVarsSet.toString())
                                             },
