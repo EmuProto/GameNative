@@ -146,6 +146,9 @@ data class EnvVarInfo(
                 identifier = "MESA_VK_WSI_PRESENT_MODE",
                 possibleValues = listOf("immediate", "mailbox", "fifo", "relaxed"),
             ),
+            "DXVK_FRAME_RATE" to EnvVarInfo(
+                identifier = "DXVK_FRAME_RATE",
+            ),
         )
     }
 }

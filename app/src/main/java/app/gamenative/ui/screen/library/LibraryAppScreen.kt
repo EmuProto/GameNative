@@ -637,17 +637,6 @@ fun AppScreen(
             onBack = onBack,
             optionsMenu = arrayOf(
                 AppMenuOption(
-                    optionType = AppOptionMenuType.StorePage,
-                    onClick = {
-                        // TODO add option to view web page externally or internally
-                        val browserIntent = Intent(
-                            Intent.ACTION_VIEW,
-                            (Constants.Library.STORE_URL + appInfo.id).toUri(),
-                        )
-                        context.startActivity(browserIntent)
-                    },
-                ),
-                AppMenuOption(
                     optionType = AppOptionMenuType.EditContainer,
                     onClick = {
                         if (!SteamService.isImageFsInstalled(context)) {
@@ -691,6 +680,17 @@ fun AppScreen(
                                         )
                                     )
                                     onClickPlay(true)
+                                },
+                            ),
+                            AppMenuOption(
+                                AppOptionMenuType.ResetToDefaults,
+                                onClick = {
+                                    // Reset container configuration to the app's current default settings,
+                                    // but keep the existing drives mapping so the game path remains mounted.
+                                    val container = ContainerUtils.getOrCreateContainer(context, appId)
+                                    val defaults = ContainerUtils.getDefaultContainerData()
+                                    val adjusted = defaults.copy(drives = container.drives)
+                                    ContainerUtils.applyToContainer(context, container, adjusted)
                                 },
                             ),
                             AppMenuOption(
