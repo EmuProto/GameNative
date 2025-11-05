@@ -24,7 +24,7 @@ You can support GameNative on Ko-fi at https://ko-fi.com/gamenative
 ## Building
 ### IF YOU JUST WANT TO USE THE APP, PLEASE SEE THE HOW TO USE SECTION ABOVE. THIS IS ONLY NEEDED IF YOU WANT TO CONTRIBUTE FOR DEVELOPMENT.
 1. I use a normal build in Android studio. Hit me up if you can't figure out how to build.
-2. You will need to download imagefs_gamenative and imagefs_patches_gamenative for this to work and place them in the `src/main/assets` folder.
+2. You may need to download some additional files and place them in the `src/main/assets` folder.
 These files are available on request for legitimate development purposes. Please write to me on Discord and I can share them with you there.
 
 ## Community
