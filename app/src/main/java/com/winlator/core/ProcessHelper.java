@@ -81,9 +81,10 @@ public abstract class ProcessHelper {
 
     public static int exec(String command, String[] envp, File workingDir, Callback<Integer> terminationCallback) {
         int pid = -1;
+        java.lang.Process process = null;
         try {
             Log.d("ProcessHelper", "Executing: " + Arrays.toString(splitCommand(command)) + ", " + Arrays.toString(envp) + ", " + workingDir);
-            java.lang.Process process = Runtime.getRuntime().exec(splitCommand(command), envp, workingDir);
+            process = Runtime.getRuntime().exec(splitCommand(command), envp, workingDir);
 
             Field pidField = process.getClass().getDeclaredField("pid");
             pidField.setAccessible(true);
@@ -102,6 +103,8 @@ public abstract class ProcessHelper {
         }
         catch (Exception e) {
             Log.e("ProcessHelper", "Failed to execute command: " + e);
+            if (process != null) process.destroyForcibly();
+            if (terminationCallback != null) terminationCallback.call(-1);
         }
         return pid;
     }

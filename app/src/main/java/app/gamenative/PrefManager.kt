@@ -150,6 +150,13 @@ object PrefManager {
             setPref(GRAPHICS_DRIVER_VERSION, value)
         }
 
+    private val GRAPHICS_DRIVER_CONFIG = stringPreferencesKey("graphics_driver_config")
+    var graphicsDriverConfig: String
+        get() = getPref(GRAPHICS_DRIVER_CONFIG, Container.DEFAULT_GRAPHICSDRIVERCONFIG)
+        set(value) {
+            setPref(GRAPHICS_DRIVER_CONFIG, value)
+        }
+
     private val CONTAINER_VARIANT = stringPreferencesKey("container_variant")
     var containerVariant: String
         get() = getPref(CONTAINER_VARIANT, Container.DEFAULT_VARIANT)
@@ -208,7 +215,7 @@ object PrefManager {
 
     private val DXWRAPPER_CONFIG = stringPreferencesKey("dxwrapperConfig")
     var dxWrapperConfig: String
-        get() = getPref(DXWRAPPER_CONFIG, "")
+        get() = getPref(DXWRAPPER_CONFIG, Container.DEFAULT_DXWRAPPERCONFIG)
         set(value) {
             setPref(DXWRAPPER_CONFIG, value)
         }
@@ -246,6 +253,13 @@ object PrefManager {
         get() = getPref(LAUNCH_REAL_STEAM, false)
         set(value) {
             setPref(LAUNCH_REAL_STEAM, value)
+        }
+
+    private val FORCE_DLC = booleanPreferencesKey("force_dlc")
+    var forceDlc: Boolean
+        get() = getPref(FORCE_DLC, false)
+        set(value) {
+            setPref(FORCE_DLC, value)
         }
 
     private val CPU_LIST = stringPreferencesKey("cpu_list")
@@ -634,4 +648,15 @@ object PrefManager {
     var wineDebugChannels: String
         get() = getPref(WINE_DEBUG_CHANNELS, Constants.XServer.DEFAULT_WINE_DEBUG_CHANNELS)
         set(value) = setPref(WINE_DEBUG_CHANNELS, value)
+
+    // App and notification icon variants
+    private val USE_ALT_LAUNCHER_ICON = booleanPreferencesKey("use_alt_launcher_icon")
+    var useAltLauncherIcon: Boolean
+        get() = getPref(USE_ALT_LAUNCHER_ICON, false)
+        set(value) = setPref(USE_ALT_LAUNCHER_ICON, value)
+
+    private val USE_ALT_NOTIFICATION_ICON = booleanPreferencesKey("use_alt_notification_icon")
+    var useAltNotificationIcon: Boolean
+        get() = getPref(USE_ALT_NOTIFICATION_ICON, false)
+        set(value) = setPref(USE_ALT_NOTIFICATION_ICON, value)
 }

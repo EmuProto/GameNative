@@ -17,6 +17,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.BlendMode.Companion.Screen
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.zIndex
@@ -127,6 +128,7 @@ fun PluviaMain(
                         appId = event.appId,
                         setLoadingDialogVisible = viewModel::setLoadingDialogVisible,
                         setLoadingProgress = viewModel::setLoadingDialogProgress,
+                        setLoadingMessage = viewModel::setLoadingDialogMessage,
                         setMessageDialogState = setMessageDialogState,
                         onSuccess = viewModel::launchApp,
                     )
@@ -200,6 +202,7 @@ fun PluviaMain(
                                         appId = launchRequest.appId,
                                         setLoadingDialogVisible = viewModel::setLoadingDialogVisible,
                                         setLoadingProgress = viewModel::setLoadingDialogProgress,
+                                        setLoadingMessage = viewModel::setLoadingDialogMessage,
                                         setMessageDialogState = setMessageDialogState,
                                         onSuccess = viewModel::launchApp,
                                     )
@@ -229,10 +232,12 @@ fun PluviaMain(
                                     msgDialogState = MessageDialogState(
                                         visible = true,
                                         type = DialogType.SUPPORT,
-                                        message = "Thank you for using GameNative, please consider supporting " +
-                                            "open-source PC gaming on Android by donating whatever amount is comfortable to you",
-                                        confirmBtnText = "Donate",
+                                        title = "Thank you for using GameNative!",
+                                        message = "Support open-source PC gaming on Android by sharing the app with your friends" +
+                                                " or becoming a member on Ko-fi.",
+                                        confirmBtnText = "Join on Ko-fi",
                                         dismissBtnText = "Close",
+                                        actionBtnText = "Share",
                                     )
                                 }
                             }
@@ -400,6 +405,7 @@ fun PluviaMain(
     val onDismissRequest: (() -> Unit)?
     val onDismissClick: (() -> Unit)?
     val onConfirmClick: (() -> Unit)?
+    var onActionClick: (() -> Unit)? = null
     when (msgDialogState.type) {
         DialogType.DISCORD -> {
             onConfirmClick = {
@@ -425,6 +431,14 @@ fun PluviaMain(
             onDismissClick = {
                 msgDialogState = MessageDialogState(visible = false)
             }
+            onActionClick = {
+                val shareIntent = Intent().apply {
+                    action = Intent.ACTION_SEND
+                    putExtra(Intent.EXTRA_TEXT, "Check out GameNative - play your PC Steam games on Android, with full support for cloud saves!\nhttps://gamenative.app\nJoin the community: https://discord.gg/2hKv4VfZfE")
+                    type = "text/plain"
+                }
+                context.startActivity(Intent.createChooser(shareIntent, "Share GameNative"))
+            }
         }
 
         DialogType.SYNC_CONFLICT -> {
@@ -435,6 +449,7 @@ fun PluviaMain(
                     preferredSave = SaveLocation.Remote,
                     setLoadingDialogVisible = viewModel::setLoadingDialogVisible,
                     setLoadingProgress = viewModel::setLoadingDialogProgress,
+                    setLoadingMessage = viewModel::setLoadingDialogMessage,
                     setMessageDialogState = setMessageDialogState,
                     onSuccess = viewModel::launchApp,
                 )
@@ -447,6 +462,7 @@ fun PluviaMain(
                     preferredSave = SaveLocation.Local,
                     setLoadingDialogVisible = viewModel::setLoadingDialogVisible,
                     setLoadingProgress = viewModel::setLoadingDialogProgress,
+                    setLoadingMessage = viewModel::setLoadingDialogMessage,
                     setMessageDialogState = setMessageDialogState,
                     onSuccess = viewModel::launchApp,
                 )
@@ -486,6 +502,7 @@ fun PluviaMain(
                     ignorePendingOperations = true,
                     setLoadingDialogVisible = viewModel::setLoadingDialogVisible,
                     setLoadingProgress = viewModel::setLoadingDialogProgress,
+                    setLoadingMessage = viewModel::setLoadingDialogMessage,
                     setMessageDialogState = setMessageDialogState,
                     onSuccess = viewModel::launchApp,
                 )
@@ -507,6 +524,7 @@ fun PluviaMain(
                     ignorePendingOperations = true,
                     setLoadingDialogVisible = viewModel::setLoadingDialogVisible,
                     setLoadingProgress = viewModel::setLoadingDialogProgress,
+                    setLoadingMessage = viewModel::setLoadingDialogMessage,
                     setMessageDialogState = setMessageDialogState,
                     onSuccess = viewModel::launchApp,
                 )
@@ -530,6 +548,7 @@ fun PluviaMain(
                         appId = state.launchedAppId,
                         setLoadingDialogVisible = viewModel::setLoadingDialogVisible,
                         setLoadingProgress = viewModel::setLoadingDialogProgress,
+                        setLoadingMessage = viewModel::setLoadingDialogMessage,
                         setMessageDialogState = setMessageDialogState,
                         onSuccess = viewModel::launchApp,
                         isOffline = viewModel.isOffline.value,
@@ -641,6 +660,7 @@ fun PluviaMain(
         LoadingDialog(
             visible = state.loadingDialogVisible,
             progress = state.loadingDialogProgress,
+            message = state.loadingDialogMessage,
         )
 
         MessageDialog(
@@ -650,6 +670,8 @@ fun PluviaMain(
             confirmBtnText = msgDialogState.confirmBtnText,
             onDismissClick = onDismissClick,
             dismissBtnText = msgDialogState.dismissBtnText,
+            onActionClick = onActionClick,
+            actionBtnText = msgDialogState.actionBtnText,
             icon = msgDialogState.type.icon,
             title = msgDialogState.title,
             message = msgDialogState.message,
@@ -756,6 +778,7 @@ fun PluviaMain(
                             appId = appId,
                             setLoadingDialogVisible = viewModel::setLoadingDialogVisible,
                             setLoadingProgress = viewModel::setLoadingDialogProgress,
+                            setLoadingMessage = viewModel::setLoadingDialogMessage,
                             setMessageDialogState = { msgDialogState = it },
                             onSuccess = viewModel::launchApp,
                             isOffline = isOffline,
@@ -815,7 +838,13 @@ fun PluviaMain(
                     },
                     navigateBack = {
                         CoroutineScope(Dispatchers.Main).launch {
-                            navController.popBackStack()
+                            val currentRoute = navController.currentBackStackEntry
+                                ?.destination
+                                ?.route          // ← this is the screen’s route string
+
+                            if (currentRoute == PluviaScreen.XServer.route) {
+                                navController.popBackStack()
+                            }
                         }
                     },
                     onWindowMapped = { context, window ->
@@ -854,6 +883,7 @@ fun preLaunchApp(
     useTemporaryOverride: Boolean = false,
     setLoadingDialogVisible: (Boolean) -> Unit,
     setLoadingProgress: (Float) -> Unit,
+    setLoadingMessage: (String) -> Unit,
     setMessageDialogState: (MessageDialogState) -> Unit,
     onSuccess: KFunction2<Context, String, Unit>,
     retryCount: Int = 0,
@@ -877,11 +907,38 @@ fun preLaunchApp(
 
         // set up Ubuntu file system
         SplitCompat.install(context)
+        if (!SteamService.isImageFsInstallable(context, container.containerVariant)) {
+            setLoadingMessage("Downloading first-time files${if(container.containerVariant.equals(Container.GLIBC)) " (1/2)" else ""}")
+            SteamService.downloadImageFs(
+                onDownloadProgress = { setLoadingProgress(it / 1.0f) },
+                this,
+                variant = container.containerVariant,
+                context = context,
+            ).await()
+        }
+        if (container.containerVariant.equals(Container.GLIBC) && !SteamService.isFileInstallable(context, "imagefs_patches_gamenative.tzst")) {
+            setLoadingMessage("Downloading first-time files (2/2)")
+            SteamService.downloadImageFsPatches(
+                onDownloadProgress = { setLoadingProgress(it / 1.0f) },
+                this,
+                context = context,
+            ).await()
+        }
+        if (container.isLaunchRealSteam && !SteamService.isFileInstallable(context, "steam.tzst")) {
+            setLoadingMessage("Downloading Steam...")
+            SteamService.downloadSteam(
+                onDownloadProgress = { setLoadingProgress(it / 1.0f) },
+                this,
+                context = context,
+            ).await()
+        }
+        setLoadingMessage("Installing...")
         val imageFsInstallSuccess =
             ImageFsInstaller.installIfNeededFuture(context, context.assets, container) { progress ->
                 // Log.d("XServerScreen", "$progress")
                 setLoadingProgress(progress / 100f)
             }.get()
+        setLoadingMessage("Loading...")
         setLoadingProgress(-1f)
 
         // must activate container before downloading save files
@@ -951,6 +1008,7 @@ fun preLaunchApp(
                         useTemporaryOverride = useTemporaryOverride,
                         setLoadingDialogVisible = setLoadingDialogVisible,
                         setLoadingProgress = setLoadingProgress,
+                        setLoadingMessage = setLoadingMessage,
                         setMessageDialogState = setMessageDialogState,
                         onSuccess = onSuccess,
                         retryCount = retryCount + 1,

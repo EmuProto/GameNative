@@ -94,6 +94,7 @@ import com.skydoves.landscapist.coil.CoilImage
 import app.gamenative.utils.SteamUtils
 import com.winlator.container.ContainerData
 import com.winlator.xenvironment.ImageFsInstaller
+import com.winlator.fexcore.FEXCoreManager
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -217,6 +218,15 @@ fun AppScreen(
     val showEditConfigDialog: () -> Unit = {
         val container = ContainerUtils.getOrCreateContainer(context, appId)
         containerData = ContainerUtils.toContainerData(container)
+        // Seed FEXCore UI fields from actual per-container config file so values show up when editing
+        try {
+            val fex = FEXCoreManager.readFEXCoreSettings(context, container)
+            containerData = containerData.copy(
+                fexcoreTSOMode = fex[0],
+                fexcoreX87Mode = fex[1],
+                fexcoreMultiBlock = fex[2],
+            )
+        } catch (_: Throwable) { }
         showConfigDialog = true
     }
 
@@ -457,10 +467,12 @@ fun AppScreen(
                 loadingDialogVisible = true
                 msgDialogState = MessageDialogState(false)
                 CoroutineScope(Dispatchers.IO).launch {
-                    if (!SteamService.isImageFsInstallable(context)) {
+                    if (!SteamService.isImageFsInstallable(context, "")) {
                         SteamService.downloadImageFs(
                             onDownloadProgress = { loadingProgress = it },
                             this,
+                            "",
+                            context
                         ).await()
                     }
                     if (!SteamService.isImageFsInstalled(context)) {
@@ -625,21 +637,10 @@ fun AppScreen(
             onBack = onBack,
             optionsMenu = arrayOf(
                 AppMenuOption(
-                    optionType = AppOptionMenuType.StorePage,
-                    onClick = {
-                        // TODO add option to view web page externally or internally
-                        val browserIntent = Intent(
-                            Intent.ACTION_VIEW,
-                            (Constants.Library.STORE_URL + appInfo.id).toUri(),
-                        )
-                        context.startActivity(browserIntent)
-                    },
-                ),
-                AppMenuOption(
                     optionType = AppOptionMenuType.EditContainer,
                     onClick = {
                         if (!SteamService.isImageFsInstalled(context)) {
-                            if (!SteamService.isImageFsInstallable(context)) {
+                            if (!SteamService.isImageFsInstallable(context, "")) {
                                 msgDialogState = MessageDialogState(
                                     visible = true,
                                     type = DialogType.INSTALL_IMAGEFS,
@@ -679,6 +680,17 @@ fun AppScreen(
                                         )
                                     )
                                     onClickPlay(true)
+                                },
+                            ),
+                            AppMenuOption(
+                                AppOptionMenuType.ResetToDefaults,
+                                onClick = {
+                                    // Reset container configuration to the app's current default settings,
+                                    // but keep the existing drives mapping so the game path remains mounted.
+                                    val container = ContainerUtils.getOrCreateContainer(context, appId)
+                                    val defaults = ContainerUtils.getDefaultContainerData()
+                                    val adjusted = defaults.copy(drives = container.drives)
+                                    ContainerUtils.applyToContainer(context, container, adjusted)
                                 },
                             ),
                             AppMenuOption(

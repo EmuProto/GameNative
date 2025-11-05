@@ -78,7 +78,6 @@ public class ExternalController {
         PrefManager.init(context);
     }
 
-
     public int getDeviceId() {
         if (this.deviceId == -1) {
             int[] deviceIds = InputDevice.getDeviceIds();
@@ -210,15 +209,48 @@ public class ExternalController {
         this.state.setPressed(IDX_BUTTON_R2, r > 0.0f);
     }
 
+    public boolean isXboxController() {
+        InputDevice device = InputDevice.getDevice(getDeviceId());
+        if (device == null) return false;
+        int vendorId = device.getVendorId();
+        return vendorId == 0x045E; // Microsoft's Vendor ID for Xbox controllers
+    }
+
+    private void processXboxTriggerButton(MotionEvent event) {
+        // Retrieve axis values for triggers
+        float l = event.getAxisValue(MotionEvent.AXIS_LTRIGGER) == 0f
+                ? event.getAxisValue(MotionEvent.AXIS_BRAKE)
+                : event.getAxisValue(MotionEvent.AXIS_LTRIGGER);
+        float r = event.getAxisValue(MotionEvent.AXIS_RTRIGGER) == 0f
+                ? event.getAxisValue(MotionEvent.AXIS_GAS)
+                : event.getAxisValue(MotionEvent.AXIS_RTRIGGER);
+
+        // Simulate full press by setting trigger values to 1.0f when pulled
+        if (l > 0.0f) {
+            state.triggerL = 1.0f; // Simulate full press
+            state.setPressed(IDX_BUTTON_L2, true);
+        } else {
+            state.triggerL = 0.0f; // Simulate release
+            state.setPressed(IDX_BUTTON_L2, false);
+        }
+
+        if (r > 0.0f) {
+            state.triggerR = 1.0f; // Simulate full press
+            state.setPressed(IDX_BUTTON_R2, true);
+        } else {
+            state.triggerR = 0.0f; // Simulate release
+            state.setPressed(IDX_BUTTON_R2, false);
+        }
+    }
+
     public boolean updateStateFromMotionEvent(MotionEvent event) {
         if (isJoystickDevice(event)) {
-            if (this.processTriggerButtonOnMotionEvent) {
+            if (triggerType == TRIGGER_IS_AXIS)
                 processTriggerButton(event);
-            }
+            else if (triggerType == TRIGGER_IS_BUTTON && isXboxController())
+                processXboxTriggerButton(event);
             int historySize = event.getHistorySize();
-            for (int i = 0; i < historySize; i++) {
-                processJoystickInput(event, i);
-            }
+            for (int i = 0; i < historySize; i++) processJoystickInput(event, i);
             processJoystickInput(event, -1);
             return true;
         }
@@ -231,10 +263,20 @@ public class ExternalController {
         int keyCode = event.getKeyCode();
         int buttonIdx = getButtonIdxByKeyCode(keyCode);
         if (buttonIdx != -1) {
-            if (buttonIdx == IDX_BUTTON_L2 || buttonIdx == IDX_BUTTON_R2) {
-                this.processTriggerButtonOnMotionEvent = false;
-            }
-            this.state.setPressed(buttonIdx, pressed);
+            if (buttonIdx == IDX_BUTTON_L2) {
+                if (triggerType == TRIGGER_IS_BUTTON) {
+                    state.triggerL = pressed ? 1.0f : 0f;
+                    state.setPressed(buttonIdx, pressed);
+                } else
+                    return true;
+            } else if (buttonIdx == IDX_BUTTON_R2) {
+                if (triggerType == TRIGGER_IS_BUTTON) {
+                    state.triggerR = pressed ? 1.0f : 0f;
+                    state.setPressed(buttonIdx, pressed);
+                } else
+                    return true;
+            } else
+                state.setPressed(buttonIdx, pressed);
             return true;
         }
         switch (keyCode) {

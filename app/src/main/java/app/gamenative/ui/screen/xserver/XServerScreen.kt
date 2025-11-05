@@ -43,6 +43,7 @@ import com.winlator.container.Container
 import com.winlator.container.ContainerManager
 import com.winlator.contentdialog.NavigationDialog
 import com.winlator.contents.AdrenotoolsManager
+import com.winlator.contents.ContentProfile
 import com.winlator.contents.ContentsManager
 import com.winlator.core.AppUtils
 import com.winlator.core.Callback
@@ -100,10 +101,8 @@ import kotlinx.coroutines.launch
 import org.json.JSONException
 import org.json.JSONObject
 import timber.log.Timber
-import java.io.BufferedReader
 import java.io.File
 import java.io.IOException
-import java.io.InputStreamReader
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
@@ -284,7 +283,7 @@ fun XServerScreen(
                             } else {
                                 PostHog.capture(event = "game_closed")
                             }
-                            exit(xServerView!!.getxServer().winHandler, PluviaApp.xEnvironment, onExit)
+                            exit(xServerView!!.getxServer().winHandler, PluviaApp.xEnvironment, onExit, navigateBack)
                         }
                     }
                 }
@@ -303,7 +302,7 @@ fun XServerScreen(
     DisposableEffect(lifecycleOwner) {
         val onActivityDestroyed: (AndroidEvent.ActivityDestroyed) -> Unit = {
             Timber.i("onActivityDestroyed")
-            exit(xServerView!!.getxServer().winHandler, PluviaApp.xEnvironment, onExit)
+            exit(xServerView!!.getxServer().winHandler, PluviaApp.xEnvironment, onExit, navigateBack)
         }
         val onKeyEvent: (AndroidEvent.KeyEvent) -> Boolean = {
             val isKeyboard = Keyboard.isKeyboardDevice(it.event.device)
@@ -344,13 +343,11 @@ fun XServerScreen(
         }
         val onGuestProgramTerminated: (AndroidEvent.GuestProgramTerminated) -> Unit = {
             Timber.i("onGuestProgramTerminated")
-            exit(xServerView!!.getxServer().winHandler, PluviaApp.xEnvironment, onExit)
-            navigateBack()
+            exit(xServerView!!.getxServer().winHandler, PluviaApp.xEnvironment, onExit, navigateBack)
         }
         val onForceCloseApp: (SteamEvent.ForceCloseApp) -> Unit = {
             Timber.i("onForceCloseApp")
-            exit(xServerView!!.getxServer().winHandler, PluviaApp.xEnvironment, onExit)
-            navigateBack()
+            exit(xServerView!!.getxServer().winHandler, PluviaApp.xEnvironment, onExit, navigateBack)
         }
         val debugCallback = Callback<String> { outputLine ->
             Timber.i(outputLine ?: "")
@@ -426,6 +423,7 @@ fun XServerScreen(
                     // TODO: make 'force fullscreen' be an option of the app being launched
                     appLaunchInfo?.let { renderer.forceFullscreenWMClass = Paths.get(it.executable).name }
                 }
+                val container = ContainerUtils.getContainer(context, appId)
 
                 getxServer().windowManager.addOnWindowModificationListener(
                     object : WindowManager.OnWindowModificationListener {
@@ -447,7 +445,6 @@ fun XServerScreen(
                         }
                         override fun onUpdateWindowContent(window: Window) {
                             if (!xServerState.value.winStarted && window.isApplicationWindow()) {
-                                val container = ContainerUtils.getContainer(context, appId)
                                 if (!container.isDisableMouseInput && !container.isTouchscreenMode) renderer?.setCursorVisible(true)
                                 xServerState.value.winStarted = true
                             }
@@ -534,6 +531,8 @@ fun XServerScreen(
                     if (!xServerState.value.wineInfo.isMainWineVersion()) {
                         Timber.i("Settings wine path to: ${xServerState.value.wineInfo.path}")
                         imageFs.setWinePath(xServerState.value.wineInfo.path)
+                    } else {
+                        imageFs.setWinePath(imageFs.rootDir.path + "/opt/wine")
                     }
 
                     val onExtractFileListener = if (!xServerState.value.wineInfo.isWin64) {
@@ -563,6 +562,7 @@ fun XServerScreen(
                         container,
                         containerManager,
                         envVars,
+                        contentsManager,
                         onExtractFileListener,
                     )
                     extractArm64ecInputDLLs(context, container) // REQUIRED: Uses updated xinput1_3 main.c from x86_64 build, prevents crashes with 3+ players, avoids need for input shim dlls.
@@ -589,6 +589,7 @@ fun XServerScreen(
                         xServerView!!.getxServer(),
                         containerVariantChanged,
                         onGameLaunchError,
+                        navigateBack,
                     )
                 }
             }
@@ -979,6 +980,7 @@ private fun setupXEnvironment(
     xServer: XServer,
     containerVariantChanged: Boolean,
     onGameLaunchError: ((String) -> Unit)? = null,
+    navigateBack: () -> Unit,
 ): XEnvironment {
     val lc_all = container!!.lC_ALL
     val imageFs = ImageFs.find(context)
@@ -1070,7 +1072,16 @@ private fun setupXEnvironment(
     }
 
     if (container != null) {
-        if (container.startupSelection == Container.STARTUP_SELECTION_AGGRESSIVE) xServer.winHandler.killProcess("services.exe")
+        if (container.startupSelection == Container.STARTUP_SELECTION_AGGRESSIVE) {
+            if (container.containerVariant.equals(Container.BIONIC)){
+                Timber.d("Incorrect startup selection detected. Reverting to essential startup selection")
+                container.startupSelection = Container.STARTUP_SELECTION_ESSENTIAL
+                container.putExtra("startupSelection", java.lang.String.valueOf(Container.STARTUP_SELECTION_ESSENTIAL))
+                container.saveData()
+            } else {
+                xServer.winHandler.killProcess("services.exe");
+            }
+        }
 
         val wow64Mode = container.isWoW64Mode
         guestProgramLauncherComponent.setContainer(container);
@@ -1165,6 +1176,7 @@ private fun setupXEnvironment(
         if (status != 0) {
             Timber.e("Guest program terminated with status: $status")
             onGameLaunchError?.invoke("Game terminated with error status: $status")
+            navigateBack()
         }
         PluviaApp.events.emit(AndroidEvent.GuestProgramTerminated)
     }
@@ -1272,11 +1284,12 @@ private fun getSteamlessTarget(
     }
     return "$drive:\\${executablePath}"
 }
-private fun exit(winHandler: WinHandler?, environment: XEnvironment?, onExit: () -> Unit) {
+private fun exit(winHandler: WinHandler?, environment: XEnvironment?, onExit: () -> Unit, navigateBack: () -> Unit) {
     Timber.i("Exit called")
     PostHog.capture(event = "game_exited")
     winHandler?.stop()
     environment?.stopEnvironmentComponents()
+    SteamService.isGameRunning = false
     // AppUtils.restartApplication(this)
     // PluviaApp.xServerState = null
     // PluviaApp.xServer = null
@@ -1288,6 +1301,7 @@ private fun exit(winHandler: WinHandler?, environment: XEnvironment?, onExit: ()
     // PluviaApp.touchMouse = null
     // PluviaApp.keyboard = null
     onExit()
+    navigateBack()
 }
 
 private fun unpackExecutableFile(
@@ -1304,7 +1318,7 @@ private fun unpackExecutableFile(
     var output = StringBuilder()
     if (needsUnpacking || containerVariantChanged){
         try {
-            val monoCmd = "wine msiexec /i Z:\\opt\\mono-gecko-offline\\wine-mono-9.0.0-x86.msi"
+            val monoCmd = "wine msiexec /i Z:\\opt\\mono-gecko-offline\\wine-mono-9.0.0-x86.msi && wineserver -k"
             Timber.i("Install mono command $monoCmd")
             val monoOutput = guestProgramLauncherComponent.execShellCommand(monoCmd)
             output.append(monoOutput)
@@ -1397,9 +1411,9 @@ private fun unpackExecutableFile(
 
         output = StringBuilder()
         try {
-            val wsOutput = guestProgramLauncherComponent.execShellCommand("wineserver -w")
+            val wsOutput = guestProgramLauncherComponent.execShellCommand("wineserver -k")
             output.append(wsOutput)
-            Timber.i("Result of wineserver -w command " + output)
+            Timber.i("Result of wineserver -k command " + output)
         } catch (e: Exception) {
             Timber.e("Error running wineserver: $e")
         }
@@ -1455,6 +1469,7 @@ private fun setupWineSystemFiles(
     containerManager: ContainerManager,
     // shortcut: Shortcut?,
     envVars: EnvVars,
+    contentsManager: ContentsManager,
     onExtractFileListener: OnExtractFileListener?,
 ) {
     val imageFs = ImageFs.find(context)
@@ -1500,6 +1515,7 @@ private fun setupWineSystemFiles(
             containerManager,
             xServerState.value.dxwrapper,
             imageFs,
+            contentsManager,
             onExtractFileListener,
         )
         container.putExtra("dxwrapper", xServerState.value.dxwrapper)
@@ -1514,6 +1530,10 @@ private fun setupWineSystemFiles(
         extractWinComponentFiles(context, firstTimeBoot, imageFs, container, containerManager, onExtractFileListener)
         container.putExtra("wincomponents", wincomponents)
         containerDataChanged = true
+    }
+
+    if (container.isLaunchRealSteam){
+        extractSteamFiles(context, container, onExtractFileListener)
     }
 
     val desktopTheme = container.desktopTheme
@@ -1549,14 +1569,24 @@ private fun applyGeneralPatches(
     val contentsManager = ContentsManager(context)
     if (container.containerVariant.equals(Container.GLIBC)) {
         FileUtils.delete(File(rootDir, "/opt/apps"))
+        val downloaded = File(imageFs.getFilesDir(), "imagefs_patches_gamenative.tzst")
         Timber.i("Extracting imagefs_patches_gamenative.tzst")
-        TarCompressorUtils.extract(
-            TarCompressorUtils.Type.ZSTD,
-            context.assets,
-            "imagefs_patches_gamenative.tzst",
-            rootDir,
-            onExtractFileListener,
-        )
+        if (Arrays.asList<String?>(*context.getAssets().list("")).contains("imagefs_patches_gamenative.tzst") == true) {
+            TarCompressorUtils.extract(
+                TarCompressorUtils.Type.ZSTD,
+                context.assets,
+                "imagefs_patches_gamenative.tzst",
+                rootDir,
+                onExtractFileListener,
+            )
+        } else if (downloaded.exists()){
+            TarCompressorUtils.extract(
+                TarCompressorUtils.Type.ZSTD,
+                downloaded,
+                rootDir,
+                onExtractFileListener,
+            );
+        }
     } else {
         Timber.i("Extracting container_pattern_common.tzst")
         TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context.assets, "container_pattern_common.tzst", rootDir);
@@ -1577,6 +1607,7 @@ private fun extractDXWrapperFiles(
     containerManager: ContainerManager,
     dxwrapper: String,
     imageFs: ImageFs,
+    contentsManager: ContentsManager,
     onExtractFileListener: OnExtractFileListener?,
 ) {
     val dlls = arrayOf(
@@ -1615,6 +1646,7 @@ private fun extractDXWrapperFiles(
         }
         "vkd3d" -> {
             Timber.i("Extracting VKD3D D3D12 DLLs for dxwrapper: $dxwrapper")
+            val profile: ContentProfile? = contentsManager.getProfileByEntryName(dxwrapper)
             // Determine graphics driver to choose DXVK version
             val vortekLike = container.graphicsDriver == "vortek" || container.graphicsDriver == "adreno" || container.graphicsDriver == "sd-8-elite"
             val dxvkVersionForVkd3d = if (vortekLike && GPUHelper.vkGetApiVersion() < GPUHelper.vkMakeVersion(1, 3, 0)) "1.10.3" else "2.4.1"
@@ -1623,25 +1655,36 @@ private fun extractDXWrapperFiles(
                 TarCompressorUtils.Type.ZSTD, context.assets,
                 "dxwrapper/dxvk-${dxvkVersionForVkd3d}.tzst", windowsDir, onExtractFileListener,
             )
-            // Determine VKD3D version from state config
-            Timber.i("Extracting VKD3D D3D12 DLLs version: $dxwrapper")
+            if (profile != null) {
+                Timber.d("Applying user-defined VKD3D content profile: " + dxwrapper)
+                contentsManager.applyContent(profile);
+            } else {
+                // Determine VKD3D version from state config
+                Timber.i("Extracting VKD3D D3D12 DLLs version: $dxwrapper")
 
-            TarCompressorUtils.extract(
-                TarCompressorUtils.Type.ZSTD,
-                context.assets,
-                "dxwrapper/$dxwrapper.tzst",
-                windowsDir,
-                onExtractFileListener,
-            )
+                TarCompressorUtils.extract(
+                    TarCompressorUtils.Type.ZSTD,
+                    context.assets,
+                    "dxwrapper/$dxwrapper.tzst",
+                    windowsDir,
+                    onExtractFileListener,
+                )
+            }
         }
         else -> {
+            val profile: ContentProfile? = contentsManager.getProfileByEntryName(dxwrapper)
             // This block handles dxvk-VERSION strings
             Timber.i("Extracting DXVK/D8VK DLLs for dxwrapper: $dxwrapper")
             restoreOriginalDllFiles(context, container, containerManager, imageFs, "d3d12.dll", "d3d12core.dll", "ddraw.dll")
-            TarCompressorUtils.extract(
-                TarCompressorUtils.Type.ZSTD, context.assets,
-                "dxwrapper/$dxwrapper.tzst", windowsDir, onExtractFileListener,
-            )
+            if (profile != null) {
+                Timber.d("Applying user-defined DXVK content profile: " + dxwrapper)
+                contentsManager.applyContent(profile);
+            } else {
+                TarCompressorUtils.extract(
+                    TarCompressorUtils.Type.ZSTD, context.assets,
+                    "dxwrapper/$dxwrapper.tzst", windowsDir, onExtractFileListener,
+                )
+            }
             TarCompressorUtils.extract(
                 TarCompressorUtils.Type.ZSTD,
                 context.assets,
@@ -2060,6 +2103,23 @@ private fun extractGraphicsDriverFiles(
 //            envVars.put("VKBASALT_CONFIG", vkbasaltConfig)
 //        }
     }
+}
+
+private fun extractSteamFiles(
+    context: Context,
+    container: Container,
+    onExtractFileListener: OnExtractFileListener?,
+) {
+    val imageFs = ImageFs.find(context)
+    if (File(ImageFs.find(context).rootDir.absolutePath, ImageFs.WINEPREFIX + "/drive_c/Program Files (x86)/Steam/steam.exe").exists()) return
+    val downloaded = File(imageFs.getFilesDir(), "steam.tzst")
+    Timber.i("Extracting steam.tzst")
+    TarCompressorUtils.extract(
+        TarCompressorUtils.Type.ZSTD,
+        downloaded,
+        imageFs.getRootDir(),
+        onExtractFileListener,
+    );
 }
 
 private fun readZipManifestNameFromAssets(context: Context, assetName: String): String? {

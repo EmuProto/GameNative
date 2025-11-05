@@ -8,6 +8,7 @@ data class MessageDialogState(
     val type: DialogType = DialogType.NONE,
     val confirmBtnText: String = "Confirm",
     val dismissBtnText: String = "Dismiss",
+    val actionBtnText: String? = null,
     val title: String? = null,
     val message: String? = null,
 ) {
@@ -19,6 +20,7 @@ data class MessageDialogState(
                     "type" to state.type,
                     "confirmBtnText" to state.confirmBtnText,
                     "dismissBtnText" to state.dismissBtnText,
+                    "actionBtnText" to state.actionBtnText,
                     "title" to state.title,
                     "message" to state.message,
                 )
@@ -29,6 +31,7 @@ data class MessageDialogState(
                     type = savedMap["type"] as DialogType,
                     confirmBtnText = savedMap["confirmBtnText"] as String,
                     dismissBtnText = savedMap["dismissBtnText"] as String,
+                    actionBtnText = savedMap["actionBtnText"] as String?,
                     title = savedMap["title"] as String?,
                     message = savedMap["message"] as String?,
                 )

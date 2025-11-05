@@ -29,10 +29,15 @@ import timber.log.Timber
 import okhttp3.*
 import org.json.JSONObject
 import java.net.URLEncoder
+import java.util.concurrent.TimeUnit
 
 object SteamUtils {
 
-    private val http = OkHttpClient()
+    internal val http = OkHttpClient.Builder()
+        .readTimeout(5, TimeUnit.MINUTES)      // from 2 min → 5 min
+        .protocols(listOf(Protocol.HTTP_1_1))  // skip HTTP/2 stream stalls
+        .retryOnConnectionFailure(true)
+        .build()
 
     private val sfd by lazy {
         SimpleDateFormat("MMM d - h:mm a", Locale.getDefault()).apply {
@@ -659,8 +664,8 @@ object SteamUtils {
         val configsIni = settingsDir.resolve("configs.user.ini")
         val accountName   = PrefManager.username
         val accountSteamId = SteamService.userSteamId?.convertToUInt64()?.toString() ?: "0"
+        val container = ContainerUtils.getOrCreateContainer(context, appId)
         val language = runCatching {
-            val container = ContainerUtils.getOrCreateContainer(context, appId)
             (container.getExtra("language", null)
                 ?: container.javaClass.getMethod("getLanguage").invoke(container) as? String)
                 ?: "english"
@@ -679,9 +684,10 @@ object SteamUtils {
         val appIni = settingsDir.resolve("configs.app.ini")
         val dlcIds = SteamService.getDlcDepotsOf(steamAppId)
 
+        val forceDlc = container.isForceDlc()
         val appIniContent = buildString {
             appendLine("[app::dlcs]")
-            appendLine("unlock_all=0")
+            appendLine("unlock_all=${if (forceDlc) 1 else 0}")
             dlcIds?.forEach { appendLine("$it=dlc$it") }
         }
 

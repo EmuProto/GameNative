@@ -6,6 +6,7 @@ enum class AppOptionMenuType(val text: String) {
     ExportFrontend("Export for frontend"),
     RunContainer("Open container"),
     EditContainer("Edit container"),
+    ResetToDefaults("Reset container"),
     GetSupport("Get support"),
     SubmitFeedback("Submit feedback"),
     ResetDrm("Reset DRM"),

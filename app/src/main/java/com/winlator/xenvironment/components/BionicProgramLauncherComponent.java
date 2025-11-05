@@ -108,6 +108,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
                 }
                 SteamService.setGameRunning(false);
             }
+            execShellCommand("wineserver -k");
         }
     }
 

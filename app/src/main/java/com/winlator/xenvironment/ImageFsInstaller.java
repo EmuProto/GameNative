@@ -35,6 +35,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -83,20 +84,42 @@ public abstract class ImageFsInstaller {
             clearRootDir(rootDir);
             final byte compressionRatio = 22;
             String imagefsFile = containerVariant.equals(Container.GLIBC) ? "imagefs_gamenative.txz" : "imagefs_bionic.txz";
-            final long contentLength = (long)(FileUtils.getSize(assetManager, imagefsFile) * (100.0f / compressionRatio));
-            AtomicLong totalSizeRef = new AtomicLong();
-            Log.d("Extraction", "extracting " + imagefsFile);
+            File downloaded = new File(imageFs.getFilesDir(), imagefsFile);
 
-            boolean success = TarCompressorUtils.extract(TarCompressorUtils.Type.XZ, assetManager, imagefsFile, rootDir, (file, size) -> {
-                if (size > 0) {
-                    long totalSize = totalSizeRef.addAndGet(size);
-                    if (onProgress != null) {
-                        final int progress = (int)(((float)totalSize / contentLength) * 100);
-                        onProgress.call(progress);
+            boolean success = false;
+
+            if (Arrays.asList(context.getAssets().list("")).contains(imagefsFile) == true){
+                final long contentLength = (long) (FileUtils.getSize(assetManager, imagefsFile) * (100.0f / compressionRatio));
+                AtomicLong totalSizeRef = new AtomicLong();
+                Log.d("Extraction", "extracting " + imagefsFile);
+
+                success = TarCompressorUtils.extract(TarCompressorUtils.Type.XZ, assetManager, imagefsFile, rootDir, (file, size) -> {
+                    if (size > 0) {
+                        long totalSize = totalSizeRef.addAndGet(size);
+                        if (onProgress != null) {
+                            final int progress = (int) (((float) totalSize / contentLength) * 100);
+                            onProgress.call(progress);
+                        }
                     }
-                }
-                return file;
-            });
+                    return file;
+                });
+            }
+
+            else if (downloaded.exists()){
+                final long contentLength = (long) (FileUtils.getSize(downloaded) * (100.0f / compressionRatio));
+                AtomicLong totalSizeRef = new AtomicLong();
+                Log.d("Extraction", "extracting " + imagefsFile);
+                success = TarCompressorUtils.extract(TarCompressorUtils.Type.XZ, downloaded, rootDir, (file, size) -> {
+                    if (size > 0) {
+                        long totalSize = totalSizeRef.addAndGet(size);
+                        if (onProgress != null) {
+                            final int progress = (int) (((float) totalSize / contentLength) * 100);
+                            onProgress.call(progress);
+                        }
+                    }
+                    return file;
+                });
+            }
 
             if (success) {
                 Log.d("ImageFsInstaller", "Successfully installed system files");

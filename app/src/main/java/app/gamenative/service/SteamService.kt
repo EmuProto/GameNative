@@ -145,13 +145,20 @@ import app.gamenative.data.AppInfo
 import app.gamenative.db.dao.AppInfoDao
 import kotlinx.coroutines.ensureActive
 import app.gamenative.enums.Marker
+import app.gamenative.utils.FileUtils
 import app.gamenative.utils.MarkerUtils
+import com.winlator.container.Container
 import `in`.dragonbra.javasteam.steam.handlers.steamuser.callback.PlayingSessionStateCallback
 import `in`.dragonbra.javasteam.steam.steamclient.AsyncJobFailedException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.io.InputStream
+import java.io.OutputStream
+import java.util.concurrent.TimeUnit
 
 @AndroidEntryPoint
 class SteamService : Service(), IChallengeUrlChanged {
@@ -760,68 +767,136 @@ class SteamService : Service(), IChallengeUrlChanged {
             return ImageFs.find(context).rootDir.exists()
         }
 
-        fun isImageFsInstallable(context: Context): Boolean {
-            val splitManager = SplitInstallManagerFactory.create(context)
-            return splitManager.installedModules.contains("ubuntufs") // || FileUtils.assetExists(context.assets, "imagefs_gamenative.txz")
+        fun isImageFsInstallable(context: Context, variant: String): Boolean {
+            val imageFs = ImageFs.find(context)
+            if (variant.equals(Container.BIONIC)) {
+                return File(imageFs.filesDir, "imagefs_bionic.txz").exists() || context.assets.list("")?.contains("imagefs_bionic.txz") == true
+            } else {
+                return File(imageFs.filesDir, "imagefs_gamenative.txz").exists() || context.assets.list("")?.contains("imagefs_gamenative.txz") == true
+            }
+        }
+
+        fun isSteamInstallable(context: Context): Boolean {
+            val imageFs = ImageFs.find(context)
+            return File(imageFs.filesDir, "steam.tzst").exists()
+        }
+
+        fun isFileInstallable(context: Context, filename: String): Boolean {
+            val imageFs = ImageFs.find(context)
+            return File(imageFs.filesDir, filename).exists()
+        }
+
+        suspend fun fetchFile(
+            url: String,
+            dest: File,
+            onProgress: (Float) -> Unit
+        ) = withContext(Dispatchers.IO) {
+            val tmp = File(dest.absolutePath + ".part")
+            try {
+                val http = SteamUtils.http
+
+                val req = Request.Builder().url(url).build()
+                http.newCall(req).execute().use { rsp ->
+                    check(rsp.isSuccessful) { "HTTP ${rsp.code}" }
+                    val body = rsp.body ?: error("empty body")
+                    val total = body.contentLength()
+                    tmp.outputStream().use { out ->
+                        body.byteStream().copyTo(out, 8 * 1024) { read ->
+                            onProgress(read.toFloat() / total)
+                        }
+                    }
+                    if (total > 0 && tmp.length() != total) {
+                        tmp.delete()
+                        error("incomplete download")
+                    }
+                    if (!tmp.renameTo(dest)) {
+                        tmp.copyTo(dest, overwrite = true)
+                        tmp.delete()
+                    }
+                }
+            } catch (e: Exception) {
+                tmp.delete()
+                throw e
+            }
+        }
+
+        suspend fun fetchFileWithFallback(
+            fileName: String,
+            dest: File,
+            context: Context,
+            onProgress: (Float) -> Unit
+        ) = withContext(Dispatchers.IO) {
+            val primaryUrl = "https://downloads.gamenative.app/$fileName"
+            val fallbackUrl = "https://pub-9fcd5294bd0d4b85a9d73615bf98f3b5.r2.dev/$fileName"
+            try {
+                fetchFile(primaryUrl, dest, onProgress)
+            } catch (e: Exception) {
+                Timber.w(e, "Primary download failed; retrying with fallback URL")
+                try {
+                    fetchFile(fallbackUrl, dest, onProgress)
+                } catch (e2: Exception) {
+                    withContext(Dispatchers.Main) {
+                        val msg = "Download failed with ${e2.message ?: e2.toString()}. Please disable VPN or try a different network."
+                        android.widget.Toast.makeText(context.applicationContext, msg, android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        }
+
+        /** copyTo with progress callback */
+        private inline fun InputStream.copyTo(
+            out: OutputStream,
+            bufferSize: Int = DEFAULT_BUFFER_SIZE,
+            progress: (Long) -> Unit
+        ) {
+            val buf = ByteArray(bufferSize)
+            var bytesRead: Int
+            var total = 0L
+            while (read(buf).also { bytesRead = it } >= 0) {
+                if (bytesRead == 0) continue
+                out.write(buf, 0, bytesRead)
+                total += bytesRead
+                progress(total)
+            }
         }
 
         fun downloadImageFs(
             onDownloadProgress: (Float) -> Unit,
             parentScope: CoroutineScope = CoroutineScope(Dispatchers.IO),
+            variant: String,
+            context: Context,
         ) = parentScope.async {
-            if (!isImageFsInstalled(instance!!) && !isImageFsInstallable(instance!!)) {
-                Timber.i("imagefs_gamenative.txz will be downloaded")
-                val splitManager = SplitInstallManagerFactory.create(instance!!)
-                // if (!splitManager.installedModules.contains("ubuntufs")) {
-                val moduleInstallSessionId = splitManager.requestInstall(listOf("ubuntufs"))
-                var isInstalling = true
-                // try {
-                do {
-                    val sessionState = splitManager.requestSessionState(moduleInstallSessionId)
-                    // logD("imagefs_gamenative.txz session state status: ${sessionState.status}")
-                    when (sessionState.status) {
-                        SplitInstallSessionStatus.INSTALLED -> isInstalling = false
-                        SplitInstallSessionStatus.PENDING,
-                        SplitInstallSessionStatus.INSTALLING,
-                        SplitInstallSessionStatus.DOWNLOADED,
-                        SplitInstallSessionStatus.DOWNLOADING,
-                        -> {
-                            if (!isActive) {
-                                Timber.i("ubuntufs module download cancelling due to scope becoming inactive")
-                                splitManager.requestCancelInstall(moduleInstallSessionId)
-                                break
-                            }
-                            val downloadPercent =
-                                sessionState.bytesDownloaded.toFloat() / sessionState.totalBytesToDownload
-                            // logD("imagefs_gamenative.txz download percent: $downloadPercent")
-                            // downloadInfo.setProgress(downloadPercent, 0)
-                            onDownloadProgress(downloadPercent)
-                            delay(100)
-                        }
-
-                        else -> {
-                            cancel("Failed to install ubuntufs module: ${sessionState.status}")
-                        }
-                    }
-                } while (isInstalling)
-                // } catch (e: Exception) {
-                //     if (moduleInstallSessionId != -1) {
-                //         val splitManager = SplitInstallManagerFactory.create(instance!!)
-                //         val sessionState = splitManager.requestSessionState(moduleInstallSessionId)
-                //         if (sessionState.status == SplitInstallSessionStatus.DOWNLOADING ||
-                //             sessionState.status == SplitInstallSessionStatus.DOWNLOADED ||
-                //             sessionState.status == SplitInstallSessionStatus.INSTALLING
-                //         ) {
-                //             splitManager.requestCancelInstall(moduleInstallSessionId)
-                //         }
-                //     }
-                // }
-                val installedProperly = splitManager.installedModules.contains("ubuntufs")
-                Timber.i("imagefs_gamenative.txz module installed properly: $installedProperly")
-                // }
+            Timber.i("imagefs will be downloaded")
+            if (variant == Container.BIONIC){
+                val dest = File(instance!!.filesDir, "imagefs_bionic.txz")
+                Timber.d("Downloading imagefs_bionic to " + dest.toString());
+                fetchFileWithFallback("imagefs_bionic.txz", dest, context, onDownloadProgress)
             } else {
-                Timber.i("ubuntufs module already installed, skipping download")
+                Timber.d("Downloading imagefs_gamenative to " + File(instance!!.filesDir, "imagefs_gamenative.txz"));
+                fetchFileWithFallback("imagefs_gamenative.txz", File(instance!!.filesDir, "imagefs_gamenative.txz"), context, onDownloadProgress)
             }
+        }
+
+        fun downloadImageFsPatches(
+            onDownloadProgress: (Float) -> Unit,
+            parentScope: CoroutineScope = CoroutineScope(Dispatchers.IO),
+            context: Context,
+        ) = parentScope.async {
+            Timber.i("imagefs will be downloaded")
+            val dest = File(instance!!.filesDir, "imagefs_patches_gamenative.tzst")
+            Timber.d("Downloading imagefs_patches_gamenative.tzst to " + dest.toString());
+            fetchFileWithFallback("imagefs_patches_gamenative.tzst", dest, context, onDownloadProgress)
+        }
+
+        fun downloadSteam(
+            onDownloadProgress: (Float) -> Unit,
+            parentScope: CoroutineScope = CoroutineScope(Dispatchers.IO),
+            context: Context,
+        ) = parentScope.async {
+            Timber.i("imagefs will be downloaded")
+            val dest = File(instance!!.filesDir, "steam.tzst")
+            Timber.d("Downloading steam.tzst to " + dest.toString());
+            fetchFileWithFallback("steam.tzst", dest, context, onDownloadProgress)
         }
 
         fun downloadApp(

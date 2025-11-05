@@ -10,20 +10,19 @@ import com.winlator.container.ContainerData
 import com.winlator.container.ContainerManager
 import com.winlator.core.DefaultVersion
 import com.winlator.core.FileUtils
+import com.winlator.core.GPUInformation
 import com.winlator.core.WineRegistryEditor
 import com.winlator.core.WineThemeManager
 import com.winlator.fexcore.FEXCoreManager
 import com.winlator.inputcontrols.ControlsProfile
 import com.winlator.inputcontrols.InputControlsManager
 import com.winlator.winhandler.WinHandler.PreferredInputApi
-import java.io.File
-import kotlin.Boolean
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.json.JSONArray
 import org.json.JSONObject
 import timber.log.Timber
+import java.io.File
 
 object ContainerUtils {
     data class GpuInfo(
@@ -31,6 +30,27 @@ object ContainerUtils {
         val vendorId: Int,
         val name: String,
     )
+
+    fun setContainerDefaults(context: Context){
+        // Override default driver and DXVK version based on Turnip capability
+        if (GPUInformation.isTurnipCapable(context)) {
+            DefaultVersion.VARIANT = Container.GLIBC
+            DefaultVersion.DEFAULT_GRAPHICS_DRIVER = "turnip"
+            DefaultVersion.DXVK = "2.6.1-gplasync"
+            DefaultVersion.VKD3D = "2.14.1"
+            DefaultVersion.WRAPPER = "turnip25.3.0_R3_Auto"
+            DefaultVersion.STEAM_TYPE = Container.STEAM_TYPE_NORMAL
+            DefaultVersion.ASYNC_CACHE = "1"
+        } else {
+            DefaultVersion.VARIANT = Container.BIONIC
+            DefaultVersion.WINE_VERSION = "proton-9.0-arm64ec"
+            DefaultVersion.DEFAULT_GRAPHICS_DRIVER = "Wrapper-leegao"
+            DefaultVersion.DXVK = "async-1.10.3"
+            DefaultVersion.VKD3D = "2.6"
+            DefaultVersion.STEAM_TYPE = Container.STEAM_TYPE_LIGHT
+            DefaultVersion.ASYNC_CACHE = "0"
+        }
+    }
 
     fun getGPUCards(context: Context): Map<Int, GpuInfo> {
         val gpuNames = JSONArray(FileUtils.readString(context, "gpu_cards.json"))
@@ -53,6 +73,7 @@ object ContainerUtils {
             envVars = PrefManager.envVars,
             graphicsDriver = PrefManager.graphicsDriver,
             graphicsDriverVersion = PrefManager.graphicsDriverVersion,
+            graphicsDriverConfig = PrefManager.graphicsDriverConfig,
             dxwrapper = PrefManager.dxWrapper,
             dxwrapperConfig = PrefManager.dxWrapperConfig,
             audioDriver = PrefManager.audioDriver,
@@ -72,6 +93,7 @@ object ContainerUtils {
             desktopTheme = WineThemeManager.DEFAULT_DESKTOP_THEME,
             language = PrefManager.containerLanguage,
             containerVariant = PrefManager.containerVariant,
+            forceDlc = PrefManager.forceDlc,
             wineVersion = PrefManager.wineVersion,
 			emulator = PrefManager.emulator,
 			fexcoreVersion = PrefManager.fexcoreVersion,
@@ -79,7 +101,6 @@ object ContainerUtils {
 			fexcoreX87Mode = PrefManager.fexcoreX87Mode,
 			fexcoreMultiBlock = PrefManager.fexcoreMultiBlock,
 			renderer = PrefManager.renderer,
-
 			csmt = PrefManager.csmt,
             videoPciDeviceID = PrefManager.videoPciDeviceID,
             offScreenRenderingMode = PrefManager.offScreenRenderingMode,
@@ -99,6 +120,7 @@ object ContainerUtils {
         PrefManager.envVars = containerData.envVars
         PrefManager.graphicsDriver = containerData.graphicsDriver
         PrefManager.graphicsDriverVersion = containerData.graphicsDriverVersion
+        PrefManager.graphicsDriverConfig = containerData.graphicsDriverConfig
         PrefManager.dxWrapper = containerData.dxwrapper
         PrefManager.dxWrapperConfig = containerData.dxwrapperConfig
         PrefManager.audioDriver = containerData.audioDriver
@@ -138,6 +160,7 @@ object ContainerUtils {
 		PrefManager.xinputEnabled = containerData.enableXInput
 		PrefManager.dinputEnabled = containerData.enableDInput
 		PrefManager.dinputMapperType = containerData.dinputMapperType.toInt()
+        PrefManager.forceDlc = containerData.forceDlc
     }
 
     fun toContainerData(container: Container): ContainerData {
@@ -216,6 +239,7 @@ object ContainerUtils {
             fexcoreVersion = container.fexCoreVersion,
             language = container.language,
             sdlControllerAPI = container.isSdlControllerAPI,
+            forceDlc = container.isForceDlc,
             enableXInput = enableX,
             enableDInput = enableD,
             dinputMapperType = mapperType,
@@ -250,6 +274,7 @@ object ContainerUtils {
         } catch (e: Exception) {
             container.getExtra("language", "english")
         }
+        val previousForceDlc: Boolean = container.isForceDlc
         val userRegFile = File(container.rootDir, ".wine/user.reg")
         WineRegistryEditor(userRegFile).use { registryEditor ->
             registryEditor.setStringValue("Software\\Wine\\Direct3D", "renderer", containerData.renderer)
@@ -299,14 +324,14 @@ object ContainerUtils {
         container.isSdlControllerAPI = containerData.sdlControllerAPI
         container.desktopTheme = containerData.desktopTheme
         container.graphicsDriverVersion = containerData.graphicsDriverVersion
-        container.setContainerVariant(containerData.containerVariant)
-        container.setWineVersion(containerData.wineVersion)
-        // Persist 32-bit emulator selection
-        container.setEmulator(containerData.emulator)
-        container.setFEXCoreVersion(containerData.fexcoreVersion)
+        container.containerVariant = containerData.containerVariant
+        container.wineVersion = containerData.wineVersion
+        container.emulator = containerData.emulator
+        container.fexCoreVersion = containerData.fexcoreVersion
         container.setDisableMouseInput(containerData.disableMouseInput)
         container.setTouchscreenMode(containerData.touchscreenMode)
         container.setEmulateKeyboardMouse(containerData.emulateKeyboardMouse)
+        container.setForceDlc(containerData.forceDlc)
         try {
             val bindingsStr = containerData.controllerEmulationBindings
             if (bindingsStr.isNotEmpty()) {
@@ -327,6 +352,18 @@ object ContainerUtils {
             val appDirPath = SteamService.getAppDirPath(steamAppId)
             MarkerUtils.removeMarker(appDirPath, Marker.STEAM_DLL_REPLACED)
             Timber.i("Language changed from '$previousLanguage' to '${containerData.language}'. Cleared STEAM_DLL_REPLACED marker for container ${container.id}.")
+        }
+        if (previousLanguage.lowercase() != containerData.language.lowercase()) {
+            val steamAppId = extractGameIdFromContainerId(container.id)
+            val appDirPath = SteamService.getAppDirPath(steamAppId)
+            MarkerUtils.removeMarker(appDirPath, Marker.STEAM_DLL_REPLACED)
+            Timber.i("Language changed from '$previousLanguage' to '${containerData.language}'. Cleared STEAM_DLL_REPLACED marker for container ${container.id}.")
+        }
+        if (previousForceDlc != containerData.forceDlc) {
+            val steamAppId = extractGameIdFromContainerId(container.id)
+            val appDirPath = SteamService.getAppDirPath(steamAppId)
+            MarkerUtils.removeMarker(appDirPath, Marker.STEAM_DLL_REPLACED)
+            Timber.i("forceDlc changed from '$previousForceDlc' to '${containerData.forceDlc}'. Cleared STEAM_DLL_REPLACED marker for container ${container.id}.")
         }
 
         // Apply controller settings to container
@@ -468,6 +505,7 @@ object ContainerUtils {
                 cpuListWoW64 = PrefManager.cpuListWoW64,
                 graphicsDriver = PrefManager.graphicsDriver,
                 graphicsDriverVersion = PrefManager.graphicsDriverVersion,
+                graphicsDriverConfig = PrefManager.graphicsDriverConfig,
                 dxwrapper = initialDxWrapper,
                 dxwrapperConfig = PrefManager.dxWrapperConfig,
                 audioDriver = PrefManager.audioDriver,

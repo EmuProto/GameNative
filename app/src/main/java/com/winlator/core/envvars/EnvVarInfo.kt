@@ -48,6 +48,51 @@ data class EnvVarInfo(
                 selectionType = EnvVarSelectionType.TOGGLE,
                 possibleValues = listOf("0", "1"),
             ),
+            "BOX64_AVX" to EnvVarInfo(
+                identifier = "BOX64_AVX",
+                possibleValues = listOf("0", "1", "2"),
+            ),
+            "BOX64_MAXCPU" to EnvVarInfo(
+                identifier = "BOX64_MAXCPU",
+                possibleValues = listOf("4", "8", "16", "32", "64"),
+            ),
+            "BOX64_UNITYPLAYER" to EnvVarInfo(
+                identifier = "BOX64_UNITYPLAYER",
+                selectionType = EnvVarSelectionType.TOGGLE,
+                possibleValues = listOf("0", "1"),
+            ),
+            "BOX64_DYNAREC_WEAKBARRIER" to EnvVarInfo(
+                identifier = "BOX64_DYNAREC_WEAKBARRIER",
+                possibleValues = listOf("0", "1", "2"),
+            ),
+            "BOX64_DYNAREC_ALIGNED_ATOMICS" to EnvVarInfo(
+                identifier = "BOX64_DYNAREC_ALIGNED_ATOMICS",
+                selectionType = EnvVarSelectionType.TOGGLE,
+                possibleValues = listOf("0", "1"),
+            ),
+            "BOX64_DYNAREC_DF" to EnvVarInfo(
+                identifier = "BOX64_DYNAREC_DF",
+                selectionType = EnvVarSelectionType.TOGGLE,
+                possibleValues = listOf("0", "1"),
+            ),
+            "BOX64_DYNAREC_DIRTY" to EnvVarInfo(
+                identifier = "BOX64_DYNAREC_DIRTY",
+                possibleValues = listOf("0", "1", "2"),
+            ),
+            "BOX64_DYNAREC_NATIVEFLAGS" to EnvVarInfo(
+                identifier = "BOX64_DYNAREC_NATIVEFLAGS",
+                selectionType = EnvVarSelectionType.TOGGLE,
+                possibleValues = listOf("0", "1"),
+            ),
+            "BOX64_DYNAREC_PAUSE" to EnvVarInfo(
+                identifier = "BOX64_DYNAREC_PAUSE",
+                possibleValues = listOf("0", "1", "2", "3"),
+            ),
+            "BOX64_MMAP32" to EnvVarInfo(
+                identifier = "BOX64_MMAP32",
+                selectionType = EnvVarSelectionType.TOGGLE,
+                possibleValues = listOf("0", "1"),
+            ),
         )
         val KNOWN_ENV_VARS = mapOf(
             "ZINK_DESCRIPTORS" to EnvVarInfo(
@@ -100,6 +145,9 @@ data class EnvVarInfo(
             "MESA_VK_WSI_PRESENT_MODE" to EnvVarInfo(
                 identifier = "MESA_VK_WSI_PRESENT_MODE",
                 possibleValues = listOf("immediate", "mailbox", "fifo", "relaxed"),
+            ),
+            "DXVK_FRAME_RATE" to EnvVarInfo(
+                identifier = "DXVK_FRAME_RATE",
             ),
         )
     }

@@ -49,6 +49,11 @@ fun SettingsGroupEmulation() {
             app.gamenative.ui.screen.settings.DriverManagerDialog(open = showDriverManager, onDismiss = { showDriverManager = false })
         }
 
+        var showContentsManager by rememberSaveable { mutableStateOf(false) }
+        if (showContentsManager) {
+            app.gamenative.ui.screen.settings.ContentsManagerDialog(open = showContentsManager, onDismiss = { showContentsManager = false })
+        }
+
         SettingsMenuLink(
             colors = settingsTileColors(),
             title = { Text(text = "Allowed Orientations") },
@@ -72,6 +77,12 @@ fun SettingsGroupEmulation() {
             title = { Text(text = "Driver Manager") },
             subtitle = { Text(text = "Install or remove custom graphics driver packages") },
             onClick = { showDriverManager = true },
+        )
+        SettingsMenuLink(
+            colors = settingsTileColors(),
+            title = { Text(text = "Contents Manager") },
+            subtitle = { Text(text = "Install additional components (.wcp)") },
+            onClick = { showContentsManager = true },
         )
     }
 }

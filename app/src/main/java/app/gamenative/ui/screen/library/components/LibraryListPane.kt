@@ -114,7 +114,7 @@ internal fun LibraryListPane(
             if (isViewWide) {
                 paneType = PaneType.GRID_HERO
             } else {
-                paneType = PaneType.LIST
+                paneType = PaneType.GRID_CAPSULE
             }
             PrefManager.libraryLayout = paneType
         }

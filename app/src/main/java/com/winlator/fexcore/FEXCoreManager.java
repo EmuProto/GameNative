@@ -323,4 +323,33 @@ public final class FEXCoreManager {
         configFile = new File(imageFS.home_path + "-" + container.id + "/.fex-emu/Config.json");
         return parseConfigFile();
     }
+
+    /**
+     * Read FEXCore settings for the given container from .fex-emu/Config.json.
+     * Returns an array of 3 strings: [TSO preset, x87 mode, multiblock value].
+     * Defaults to ["Fast", "Fast", "Disabled"] if file missing or parse error.
+     */
+    public static String[] readFEXCoreSettings(Context ctx, Container container) {
+        try {
+            File imageFsRoot = new File(ctx.getFilesDir(), "imagefs");
+            imageFS = ImageFs.find(imageFsRoot);
+            File cfg = new File(imageFS.home_path + "-" + container.id + "/.fex-emu/Config.json");
+            if (!cfg.exists()) {
+                return new String[]{"Fast", "Fast", "Disabled"};
+            }
+            JSONObject jobj = new JSONObject(FileUtils.readString(cfg));
+            JSONObject config = jobj.getJSONObject("Config");
+            String tsoPreset = presetFromTSOValues(
+                    config.getString("TSOEnabled"),
+                    config.getString("VectorTSOEnabled"),
+                    config.getString("MemcpySetTSOEnabled"),
+                    config.getString("HalfBarrierTSOEnabled")
+            );
+            String x87mode = (config.getString("X87ReducedPrecision").equals("1")) ? "Fast" : "Slow";
+            String multiBlockValue = (config.getString("Multiblock").equals("1")) ? "Enabled" : "Disabled";
+            return new String[]{tsoPreset, x87mode, multiBlockValue};
+        } catch (Throwable t) {
+            return new String[]{"Fast", "Fast", "Disabled"};
+        }
+    }
 }

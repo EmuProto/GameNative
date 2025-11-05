@@ -10,6 +10,7 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.net.toUri
 import app.gamenative.MainActivity
+import app.gamenative.PrefManager
 import app.gamenative.R
 
 class NotificationHelper(private val context: Context) {
@@ -78,10 +79,16 @@ class NotificationHelper(private val context: Context) {
             PendingIntent.FLAG_IMMUTABLE,
         )
 
+        val smallIconRes = if (PrefManager.useAltNotificationIcon) {
+            R.drawable.ic_notification_alt
+        } else {
+            R.drawable.ic_notification
+        }
+
         return NotificationCompat.Builder(context, CHANNEL_ID)
             .setContentTitle(context.getString(R.string.app_name))
             .setContentText(content)
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(smallIconRes)
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .setAutoCancel(false)
             .setOngoing(true)

@@ -53,19 +53,30 @@ public class ALSARequestHandler implements RequestHandler {
                 createSharedMemory(alsaClient, outputStream);
                 return true;
             case RequestCodes.WRITE:
-                ByteBuffer sharedBuffer = alsaClient.getSharedBuffer();
-                int dataCap = sharedBuffer != null ? sharedBuffer.capacity() - 4 : 0;
+                if (alsaClient.isGlibc()) {
+                    ByteBuffer sharedBuffer = alsaClient.getSharedBuffer();
 
-                if (sharedBuffer != null && requestLength <= dataCap) {
-                    copySharedBuffer(alsaClient, requestLength, outputStream);
-                    alsaClient.writeDataToTrack(alsaClient.getAuxBuffer());
-                    sharedBuffer.putInt(0, alsaClient.pointer());
-                    return true;
+                    if (sharedBuffer != null) {
+                        copySharedBuffer(alsaClient, requestLength, outputStream);
+                        alsaClient.writeDataToTrack(alsaClient.getAuxBuffer());
+                        sharedBuffer.putInt(0, alsaClient.pointer());
+                        return true;
+                    }
+                    if (inputStream.available() < requestLength) {
+                        return false;
+                    }
+                    alsaClient.writeDataToTrack(inputStream.readByteBuffer(requestLength));
+                } else {
+                    ByteBuffer sharedBuffer = alsaClient.getSharedBuffer();
+                    if (sharedBuffer != null) {
+                        sharedBuffer.limit(requestLength);
+                        alsaClient.writeDataToTrack(sharedBuffer);
+                    }
+                    else {
+                        if (inputStream.available() < requestLength) return false;
+                        alsaClient.writeDataToTrack(inputStream.readByteBuffer(requestLength));
+                    }
                 }
-                if (inputStream.available() < requestLength) {
-                    return false;
-                }
-                alsaClient.writeDataToTrack(inputStream.readByteBuffer(requestLength));
                 return true;
             case RequestCodes.DRAIN:
                 alsaClient.drain();

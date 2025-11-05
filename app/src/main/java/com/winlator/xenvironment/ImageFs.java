@@ -168,6 +168,14 @@ public class ImageFs {
         return new File(rootDir, "/usr/lib");
     }
 
+    public File getStorageDir() {
+        return new File(rootDir, "/storage");
+    }
+
+    public File getFilesDir() {
+        return rootDir.getParentFile();
+    }
+
     @NonNull
     @Override
     public String toString() {

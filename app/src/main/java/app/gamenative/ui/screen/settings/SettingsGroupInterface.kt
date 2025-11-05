@@ -5,6 +5,17 @@ import android.os.Environment
 import android.os.storage.StorageManager
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material3.Text
@@ -24,9 +35,17 @@ import com.materialkolor.PaletteStyle
 import kotlinx.serialization.json.Json
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import app.gamenative.ui.component.settings.SettingsListDropdown
 import app.gamenative.ui.theme.PluviaTheme
+import app.gamenative.R
+import androidx.compose.ui.viewinterop.AndroidView
+import android.widget.ImageView
+import app.gamenative.utils.IconSwitcher
 import com.alorma.compose.settings.ui.SettingsMenuLink
 import com.alorma.compose.settings.ui.SettingsSlider
 import kotlin.math.roundToInt
@@ -75,6 +94,39 @@ fun SettingsGroupInterface(
                 PrefManager.openWebLinksExternally = it
             },
         )
+
+        // Unified visual icon picker (affects app and notification icons)
+        var selectedVariant by rememberSaveable { mutableStateOf(if (PrefManager.useAltLauncherIcon || PrefManager.useAltNotificationIcon) 1 else 0) }
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Text(text = "Icon style")
+            Spacer(modifier = Modifier.size(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                IconVariantCard(
+                    label = "Default",
+                    launcherIconRes = R.mipmap.ic_launcher,
+                    notificationIconRes = R.drawable.ic_notification,
+                    selected = selectedVariant == 0,
+                    onClick = {
+                        selectedVariant = 0
+                        PrefManager.useAltLauncherIcon = false
+                        PrefManager.useAltNotificationIcon = false
+                        IconSwitcher.applyLauncherIcon(context, false)
+                    },
+                )
+                IconVariantCard(
+                    label = "Alternate",
+                    launcherIconRes = R.mipmap.ic_launcher_alt,
+                    notificationIconRes = R.drawable.ic_notification_alt,
+                    selected = selectedVariant == 1,
+                    onClick = {
+                        selectedVariant = 1
+                        PrefManager.useAltLauncherIcon = true
+                        PrefManager.useAltNotificationIcon = true
+                        IconSwitcher.applyLauncherIcon(context, true)
+                    },
+                )
+            }
+        }
     }
 
     // Downloads settings
@@ -173,6 +225,45 @@ fun SettingsGroupInterface(
     )
 }
 
+
+@Composable
+private fun IconVariantCard(
+    label: String,
+    launcherIconRes: Int,
+    notificationIconRes: Int,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val border = if (selected) BorderStroke(2.dp, Color(0xFF4F46E5)) else BorderStroke(1.dp, Color(0x33404040))
+    Card(
+        modifier = Modifier
+            .clickable { onClick() },
+        shape = RoundedCornerShape(12.dp),
+        border = border,
+        colors = CardDefaults.cardColors(),
+    ) {
+        Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(modifier = Modifier.size(72.dp), contentAlignment = Alignment.BottomEnd) {
+                AndroidView(
+                    modifier = Modifier.matchParentSize(),
+                    factory = { ctx ->
+                        ImageView(ctx).apply {
+                            setImageResource(launcherIconRes)
+                            scaleType = ImageView.ScaleType.CENTER_CROP
+                        }
+                    },
+                )
+                Image(
+                    painter = painterResource(id = notificationIconRes),
+                    contentDescription = "$label notification icon",
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+            Spacer(modifier = Modifier.size(8.dp))
+            Text(text = label)
+        }
+    }
+}
 
 @Preview(uiMode = Configuration.UI_MODE_NIGHT_YES or Configuration.UI_MODE_TYPE_NORMAL)
 @Composable

@@ -12,6 +12,7 @@ data class MainState(
     val hasLaunched: Boolean = false,
     val loadingDialogVisible: Boolean = false,
     val loadingDialogProgress: Float = 0F,
+    val loadingDialogMessage: String = "Loading...",
     val annoyingDialogShown: Boolean = false,
     val hasCrashedLastStart: Boolean = false,
     val isSteamConnected: Boolean = false,

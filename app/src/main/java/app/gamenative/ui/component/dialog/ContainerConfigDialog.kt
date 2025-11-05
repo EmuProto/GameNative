@@ -32,8 +32,11 @@ import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -74,6 +77,8 @@ import app.gamenative.ui.theme.settingsTileColors
 import app.gamenative.ui.theme.settingsTileColorsAlt
 import app.gamenative.utils.ContainerUtils
 import app.gamenative.service.SteamService
+import com.winlator.contents.ContentProfile
+import com.winlator.contents.ContentsManager
 import com.winlator.contents.AdrenotoolsManager
 import com.alorma.compose.settings.ui.SettingsGroup
 import com.alorma.compose.settings.ui.SettingsMenuLink
@@ -132,8 +137,9 @@ fun ContainerConfigDialog(
         val baseGraphicsDrivers = stringArrayResource(R.array.graphics_driver_entries).toList()
         var graphicsDrivers by remember { mutableStateOf(baseGraphicsDrivers.toMutableList()) }
         val dxWrappers = stringArrayResource(R.array.dxwrapper_entries).toList()
-        val dxvkVersionsAll = stringArrayResource(R.array.dxvk_version_entries).toList()
-        val vkd3dVersions = stringArrayResource(R.array.vkd3d_version_entries).toList()
+        // Start with defaults from resources
+        val dxvkVersionsBase = stringArrayResource(R.array.dxvk_version_entries).toList()
+        val vkd3dVersionsBase = stringArrayResource(R.array.vkd3d_version_entries).toList()
         val audioDrivers = stringArrayResource(R.array.audio_driver_entries).toList()
         val gpuCards = ContainerUtils.getGPUCards(context)
         val renderingModes = stringArrayResource(R.array.offscreen_rendering_modes).toList()
@@ -141,10 +147,10 @@ fun ContainerConfigDialog(
         val mouseWarps = stringArrayResource(R.array.mouse_warp_override_entries).toList()
         val winCompOpts = stringArrayResource(R.array.win_component_entries).toList()
         val box64Versions = stringArrayResource(R.array.box64_version_entries).toList()
-        val wowBox64Versions = stringArrayResource(R.array.wowbox64_version_entries).toList()
-        val box64BionicVersions = stringArrayResource(R.array.box64_bionic_version_entries).toList()
+        val wowBox64VersionsBase = stringArrayResource(R.array.wowbox64_version_entries).toList()
+        val box64BionicVersionsBase = stringArrayResource(R.array.box64_bionic_version_entries).toList()
         val box64Presets = Box86_64PresetManager.getPresets("box64", context)
-        val fexcoreVersions = stringArrayResource(R.array.fexcore_version_entries).toList()
+        val fexcoreVersionsBase = stringArrayResource(R.array.fexcore_version_entries).toList()
         val fexcoreTSOPresets = stringArrayResource(R.array.fexcore_preset_entries).toList()
         val fexcoreX87Presets = stringArrayResource(R.array.x87mode_preset_entries).toList()
         val fexcoreMultiblockValues = stringArrayResource(R.array.multiblock_values).toList()
@@ -162,6 +168,13 @@ fun ContainerConfigDialog(
         val bionicGraphicsDrivers = stringArrayResource(R.array.bionic_graphics_driver_entries).toList()
         val baseWrapperVersions = stringArrayResource(R.array.wrapper_graphics_driver_version_entries).toList()
         var wrapperVersions by remember { mutableStateOf(baseWrapperVersions) }
+        var dxvkVersionsAll by remember { mutableStateOf(dxvkVersionsBase) }
+        var vkd3dVersions by remember { mutableStateOf(vkd3dVersionsBase) }
+        var box64BionicVersions by remember { mutableStateOf(box64BionicVersionsBase) }
+        var wowBox64Versions by remember { mutableStateOf(wowBox64VersionsBase) } // reuse existing base list
+        var fexcoreVersions by remember { mutableStateOf(fexcoreVersionsBase) }
+        var versionsLoaded by remember { mutableStateOf(false) }
+
         LaunchedEffect(Unit) {
             try {
                 val installed = AdrenotoolsManager(context).enumarateInstalledDrivers()
@@ -169,6 +182,29 @@ fun ContainerConfigDialog(
                     wrapperVersions = (baseWrapperVersions + installed)
                 }
             } catch (_: Exception) {}
+
+            // Enhance lists with installed contents
+            try {
+                val mgr = ContentsManager(context)
+                mgr.syncContents()
+
+                // Helper to convert ContentProfile list to display entries
+                fun profilesToDisplay(list: List<ContentProfile>?): List<String> {
+                    if (list == null) return emptyList()
+                    return list.filter { it.remoteUrl == null }.map { profile ->
+                        val entry = ContentsManager.getEntryName(profile)
+                        val firstDash = entry.indexOf('-')
+                        if (firstDash >= 0 && firstDash + 1 < entry.length) entry.substring(firstDash + 1) else entry
+                    }
+                }
+
+                dxvkVersionsAll = (dxvkVersionsBase + profilesToDisplay(mgr.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_DXVK))).distinct()
+                vkd3dVersions = (vkd3dVersionsBase + profilesToDisplay(mgr.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_VKD3D))).distinct()
+                box64BionicVersions = (box64BionicVersionsBase + profilesToDisplay(mgr.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_BOX64))).distinct()
+                wowBox64Versions = (wowBox64Versions + profilesToDisplay(mgr.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_WOWBOX64))).distinct()
+                fexcoreVersions = (fexcoreVersionsBase + profilesToDisplay(mgr.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_FEXCORE))).distinct()
+            } catch (_: Exception) {}
+            versionsLoaded = true
         }
         val frameSyncEntries = stringArrayResource(R.array.frame_sync_entries).toList()
         val languages = listOf(
@@ -284,12 +320,7 @@ fun ContainerConfigDialog(
             val idx = bionicGraphicsDrivers.indexOfFirst { StringUtils.parseIdentifier(it) == config.graphicsDriver }
             mutableIntStateOf(if (idx >= 0) idx else 0)
         }
-        var wrapperVersionIndex by rememberSaveable {
-            val cfg = KeyValueSet(config.graphicsDriverConfig)
-            val selected = cfg.get("version", DefaultVersion.WRAPPER)
-            val idx = wrapperVersions.indexOfFirst { it == selected }
-            mutableIntStateOf(if (idx >= 0) idx else 0)
-        }
+        var wrapperVersionIndex by rememberSaveable { mutableIntStateOf(0) }
         var frameSyncIndex by rememberSaveable {
             val cfg = KeyValueSet(config.graphicsDriverConfig)
             val selected = cfg.get("frameSync", "Normal")
@@ -302,11 +333,17 @@ fun ContainerConfigDialog(
         }
         LaunchedEffect(config.graphicsDriverConfig) {
             val cfg = KeyValueSet(config.graphicsDriverConfig)
-            val ver = cfg.get("version", DefaultVersion.WRAPPER)
-            wrapperVersionIndex = wrapperVersions.indexOfFirst { it == ver }.coerceAtLeast(0)
             val fs = cfg.get("frameSync", "Normal")
             frameSyncIndex = frameSyncEntries.indexOfFirst { it.equals(fs, true) }.let { if (it >= 0) it else frameSyncEntries.indexOf("Normal").coerceAtLeast(0) }
             adrenotoolsTurnipChecked = cfg.get("adrenotoolsTurnip", "1") != "0"
+        }
+
+        LaunchedEffect(versionsLoaded, wrapperVersions, config.graphicsDriverConfig) {
+            if (!versionsLoaded) return@LaunchedEffect
+            val cfg = KeyValueSet(config.graphicsDriverConfig)
+            val ver = cfg.get("version", DefaultVersion.WRAPPER)
+            val newIdx = wrapperVersions.indexOfFirst { it == ver }.coerceAtLeast(0)
+            if (wrapperVersionIndex != newIdx) wrapperVersionIndex = newIdx
         }
 
         var screenSizeIndex by rememberSaveable {
@@ -350,6 +387,14 @@ fun ContainerConfigDialog(
             return box64Versions
         }
 
+        fun getStartupSelectionOptions(): List<String> {
+            if (config.containerVariant.equals(Container.GLIBC)) {
+                return startupSelectionEntries
+            } else {
+                return startupSelectionEntries.subList(0, 2)
+            }
+        }
+
         var graphicsDriverVersionIndex by rememberSaveable {
             // Find the version in the list that matches the configured version
             val version = config.graphicsDriverVersion
@@ -369,7 +414,7 @@ fun ContainerConfigDialog(
 
         fun currentDxvkContext(): Pair<Boolean, List<String>> {
             val driverType    = StringUtils.parseIdentifier(graphicsDrivers[graphicsDriverIndex])
-            val isVortekLike  = driverType in listOf("vortek", "adreno", "sd-8-elite")
+            val isVortekLike  = config.containerVariant.equals(Container.GLIBC) && driverType in listOf("vortek", "adreno", "sd-8-elite")
 
             val isVKD3D       = StringUtils.parseIdentifier(dxWrappers[dxWrapperIndex]) == "vkd3d"
             val constrained   = if (!inspectionMode && isVortekLike && GPUHelper.vkGetApiVersion() < GPUHelper.vkMakeVersion(1, 3, 0))
@@ -383,7 +428,7 @@ fun ContainerConfigDialog(
         // VKD3D version control (forced depending on driver)
         fun vkd3dForcedVersion(): String {
             val driverType = StringUtils.parseIdentifier(graphicsDrivers[graphicsDriverIndex])
-            val isVortekLike = driverType == "vortek" || driverType == "adreno" || driverType == "sd-8-elite"
+            val isVortekLike = config.containerVariant.equals(Container.GLIBC) && driverType == "vortek" || driverType == "adreno" || driverType == "sd-8-elite"
             return if (isVortekLike) "2.6" else "2.14.1"
         }
         // Keep dxwrapperConfig in sync when VKD3D selected
@@ -401,28 +446,17 @@ fun ContainerConfigDialog(
                 config = config.copy(dxwrapperConfig = kvs.toString())
             }
         }
-        var dxvkVersionIndex by rememberSaveable {
-            val rawConfig = config.dxwrapperConfig
-            val kvs = KeyValueSet(rawConfig)
+        var dxvkVersionIndex by rememberSaveable { mutableIntStateOf(0) }
 
-            val configuredVersion = kvs.get("version") // Direct call to get()
-
+        LaunchedEffect(versionsLoaded, dxvkVersionsAll, graphicsDriverIndex, dxWrapperIndex, config.dxwrapperConfig) {
+            if (!versionsLoaded) return@LaunchedEffect
+            val kvs = KeyValueSet(config.dxwrapperConfig)
+            val configuredVersion = kvs.get("version")
             val (_, effectiveList) = currentDxvkContext()
-
-            // Find index where the parsed display string matches the configured version
-            val foundIndex = effectiveList.indexOfFirst {
-                val parsedDisplay = StringUtils.parseIdentifier(it)
-                val match = parsedDisplay == configuredVersion
-                match
-            }
-
-            // Use found index, or fallback to the app's default DXVK version, or 0 if not found
-            val defaultVersion = DefaultVersion.DXVK
-            val defaultIndex = effectiveList.indexOfFirst {
-                StringUtils.parseIdentifier(it) == defaultVersion
-            }.coerceAtLeast(0)
-            val finalIndex = if (foundIndex >= 0) foundIndex else defaultIndex
-            mutableIntStateOf(finalIndex)
+            val foundIndex = effectiveList.indexOfFirst { StringUtils.parseIdentifier(it) == configuredVersion }
+            val defaultIndex = effectiveList.indexOfFirst { StringUtils.parseIdentifier(it) == DefaultVersion.DXVK }.coerceAtLeast(0)
+            val newIdx = if (foundIndex >= 0) foundIndex else defaultIndex
+            if (dxvkVersionIndex != newIdx) dxvkVersionIndex = newIdx
         }
         // When DXVK version defaults to an 'async' build, enable DXVK_ASYNC by default
         LaunchedEffect(dxvkVersionIndex, graphicsDriverIndex, dxWrapperIndex) {
@@ -436,16 +470,21 @@ fun ContainerConfigDialog(
                 if (isVortekLike) "async-1.10.3" else StringUtils.parseIdentifier(dxvkVersionsAll.getOrNull(dxvkVersionIndex) ?: DefaultVersion.DXVK)
             } else selectedVersion
             val envSet = EnvVars(config.envVars)
-            if (version.contains("async", ignoreCase = true)) {
-                envSet.put("DXVK_ASYNC", "1")
-            } else {
-                envSet.remove("DXVK_ASYNC")
-            }
             // Update dxwrapperConfig version only when DXVK wrapper selected
             val wrapperIsDxvk = StringUtils.parseIdentifier(dxWrappers[dxWrapperIndex]) == "dxvk"
             val kvs = KeyValueSet(config.dxwrapperConfig)
             if (wrapperIsDxvk) {
                 kvs.put("version", version)
+            }
+            if (version.contains("async", ignoreCase = true)) {
+                kvs.put("async", "1")
+            } else {
+                kvs.put("async", "0")
+            }
+            if (version.contains("gplasync", ignoreCase = true)) {
+                kvs.put("asyncCache", "1")
+            } else {
+                kvs.put("asyncCache", "0")
             }
             config = config.copy(envVars = envSet.toString(), dxwrapperConfig = kvs.toString())
         }
@@ -717,6 +756,7 @@ fun ContainerConfigDialog(
                                                     graphicsDriver = defaultDriver,
                                                     graphicsDriverVersion = "",
                                                     graphicsDriverConfig = newCfg.toString(),
+                                                    box64Version = "0.3.6",
                                                 )
                                             } else {
                                                 // Switch to bionic: set wrapper defaults
@@ -739,12 +779,21 @@ fun ContainerConfigDialog(
                                                 maxDeviceMemoryIndex =
                                                     listOf("0", "512", "1024", "2048", "4096").indexOf("4096").coerceAtLeast(0)
 
+                                                // If transitioning from GLIBC -> BIONIC, set Box64 to default and DXVK to async-1.10.3
+                                                val currentConfig = KeyValueSet(config.dxwrapperConfig)
+                                                currentConfig.put("version", "async-1.10.3")
+                                                currentConfig.put("async", "1")
+                                                currentConfig.put("asyncCache", "0")
+                                                config = config.copy(dxwrapperConfig = currentConfig.toString())
+
                                                 config = config.copy(
                                                     containerVariant = newVariant,
                                                     wineVersion = newWine,
                                                     graphicsDriver = defaultBionicDriver,
                                                     graphicsDriverVersion = "",
                                                     graphicsDriverConfig = newCfg.toString(),
+                                                    box64Version = "0.3.7",
+                                                    dxwrapperConfig = currentConfig.toString(),
                                                 )
                                             }
                                         },
@@ -763,12 +812,12 @@ fun ContainerConfigDialog(
                                         )
                                     }
                                 }
-                                OutlinedTextField(
+                                // Executable Path dropdown with all EXEs from A: drive
+                                ExecutablePathDropdown(
                                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                                     value = config.executablePath,
                                     onValueChange = { config = config.copy(executablePath = it) },
-                                    label = { Text(text = "Executable Path") },
-                                    placeholder = { Text(text = "e.g., path\\to\\exe") },
+                                    containerData = config,
                                 )
                                 OutlinedTextField(
                                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -861,6 +910,16 @@ fun ContainerConfigDialog(
                                     state = config.showFPS,
                                     onCheckedChange = {
                                         config = config.copy(showFPS = it)
+                                    },
+                                )
+
+                                SettingsSwitch(
+                                    colors = settingsTileColorsAlt(),
+                                    title = { Text(text = "Force DLC") },
+                                    subtitle = { Text(text = "Only enable if DLCs are not detected or saves with DLC are not working") },
+                                    state = config.forceDlc,
+                                    onCheckedChange = {
+                                        config = config.copy(forceDlc = it)
                                     },
                                 )
                                 SettingsSwitch(
@@ -1028,7 +1087,7 @@ fun ContainerConfigDialog(
                                     // Vortek/Adreno specific settings
                                     run {
                                         val driverType = StringUtils.parseIdentifier(graphicsDrivers[graphicsDriverIndex])
-                                        val isVortekLike = driverType == "vortek" || driverType == "adreno" || driverType == "sd-8-elite"
+                                        val isVortekLike = config.containerVariant.equals(Container.GLIBC) && driverType == "vortek" || driverType == "adreno" || driverType == "sd-8-elite"
                                         if (isVortekLike) {
                                             // Vulkan Max Version
                                             val vkVersions = listOf("1.0", "1.1", "1.2", "1.3")
@@ -1117,7 +1176,7 @@ fun ContainerConfigDialog(
                                 // DXVK Version Dropdown (conditionally visible and constrained)
                                 run {
                                     val driverType = StringUtils.parseIdentifier(graphicsDrivers[graphicsDriverIndex])
-                                    val isVortekLike = driverType == "vortek" || driverType == "adreno" || driverType == "sd-8-elite"
+                                    val isVortekLike = config.containerVariant.equals(Container.GLIBC) && driverType == "vortek" || driverType == "adreno" || driverType == "sd-8-elite"
                                     val isVKD3D = StringUtils.parseIdentifier(dxWrappers[dxWrapperIndex]) == "vkd3d"
                                     val items =
                                         if (!inspectionMode && isVortekLike && GPUHelper.vkGetApiVersion() < GPUHelper.vkMakeVersion(
@@ -1138,10 +1197,10 @@ fun ContainerConfigDialog(
                                                 val currentConfig = KeyValueSet(config.dxwrapperConfig)
                                                 currentConfig.put("version", version)
                                                 val envVarsSet = EnvVars(config.envVars)
-                                                if (version.contains("async", ignoreCase = true)) envVarsSet.put(
-                                                    "DXVK_ASYNC",
-                                                    "1"
-                                                ) else envVarsSet.remove("DXVK_ASYNC")
+                                                if (version.contains("async", ignoreCase = true)) currentConfig.put("async", "1")
+                                                else currentConfig.put("async", "0")
+                                                if (version.contains("gplasync", ignoreCase = true)) currentConfig.put("asyncCache", "1")
+                                                else currentConfig.put("asyncCache", "0")
                                                 config =
                                                     config.copy(dxwrapperConfig = currentConfig.toString(), envVars = envVarsSet.toString())
                                             },
@@ -1308,7 +1367,7 @@ fun ContainerConfigDialog(
                                 SettingsListDropdown(
                                     colors = settingsTileColors(),
                                     title = { Text(text = "Box64 Version") },
-                                    value = getVersionsForBox64().indexOfFirst { StringUtils.parseIdentifier(it) == config.box64Version },
+                                    value = getVersionsForBox64().indexOfFirst { StringUtils.parseIdentifier(it) == config.box64Version }.coerceAtLeast(0),
                                     items = getVersionsForBox64(),
                                     onItemSelected = {
                                         config = config.copy(
@@ -1636,8 +1695,8 @@ fun ContainerConfigDialog(
                                 SettingsListDropdown(
                                     colors = settingsTileColors(),
                                     title = { Text(text = "Startup Selection") },
-                                    value = config.startupSelection.toInt(),
-                                    items = startupSelectionEntries,
+                                    value = config.startupSelection.toInt().takeIf { it in getStartupSelectionOptions().indices } ?: 1,
+                                    items = getStartupSelectionOptions(),
                                     onItemSelected = {
                                         config = config.copy(
                                             startupSelection = it.toByte(),
@@ -1719,4 +1778,179 @@ private fun Preview_ContainerConfigDialog() {
             onSave = {},
         )
     }
+}
+
+/**
+ * Editable dropdown for selecting executable paths from the container's A: drive
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ExecutablePathDropdown(
+    modifier: Modifier = Modifier,
+    value: String,
+    onValueChange: (String) -> Unit,
+    containerData: ContainerData,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var executables by remember { mutableStateOf<List<String>>(emptyList()) }
+    val context = LocalContext.current
+
+    // Load executables from A: drive when component is first created
+    LaunchedEffect(containerData.drives) {
+        executables = scanExecutablesInADrive(containerData.drives)
+    }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+        modifier = modifier
+    ) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = { Text("Executable Path") },
+            placeholder = { Text("e.g., path\\to\\exe") },
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(),
+            singleLine = true
+        )
+
+        if (executables.isNotEmpty()) {
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                executables.forEach { executable ->
+                    DropdownMenuItem(
+                        text = {
+                            Column {
+                                Text(
+                                    text = executable.substringAfterLast('\\'),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                if (executable.contains('\\')) {
+                                    Text(
+                                        text = executable.substringBeforeLast('\\'),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        },
+                        onClick = {
+                            onValueChange(executable)
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Scans the container's A: drive for all .exe files
+ */
+private fun scanExecutablesInADrive(drives: String): List<String> {
+    val executables = mutableListOf<String>()
+
+    try {
+        // Find the A: drive path from container drives
+        val aDrivePath = getADrivePath(drives)
+        if (aDrivePath == null) {
+            timber.log.Timber.w("No A: drive found in container drives")
+            return emptyList()
+        }
+
+        val aDir = java.io.File(aDrivePath)
+        if (!aDir.exists() || !aDir.isDirectory) {
+            timber.log.Timber.w("A: drive path does not exist or is not a directory: $aDrivePath")
+            return emptyList()
+        }
+
+        timber.log.Timber.d("Scanning for executables in A: drive: $aDrivePath")
+
+        // Recursively scan for .exe files using walkTopDown
+        aDir.walkTopDown().forEach { file ->
+            if (file.isFile && file.name.lowercase().endsWith(".exe")) {
+                // Convert to relative Windows path format
+                val relativePath = aDir.toURI().relativize(file.toURI()).path
+                executables.add(relativePath)
+            }
+        }
+
+        // Sort alphabetically and prioritize common game executables
+        executables.sortWith { a, b ->
+            val aScore = getExecutablePriority(a)
+            val bScore = getExecutablePriority(b)
+
+            if (aScore != bScore) {
+                bScore.compareTo(aScore) // Higher priority first
+            } else {
+                a.compareTo(b, ignoreCase = true) // Alphabetical
+            }
+        }
+
+        timber.log.Timber.d("Found ${executables.size} executables in A: drive")
+
+    } catch (e: Exception) {
+        timber.log.Timber.e(e, "Error scanning A: drive for executables")
+    }
+
+    return executables
+}
+
+/**
+ * Gets the file system path for the container's A: drive
+ */
+private fun getADrivePath(drives: String): String? {
+    // Use the existing Container.drivesIterator logic
+    for (drive in Container.drivesIterator(drives)) {
+        if (drive[0] == "A") {
+            return drive[1]
+        }
+    }
+    return null
+}
+
+/**
+ * Assigns priority scores to executables for better sorting
+ */
+private fun getExecutablePriority(exePath: String): Int {
+    val fileName = exePath.substringAfterLast('\\').lowercase()
+    val baseName = fileName.substringBeforeLast('.')
+
+    return when {
+        // Highest priority: common game executable patterns
+        fileName.contains("game") -> 100
+        fileName.contains("start") -> 85
+        fileName.contains("main") -> 80
+        fileName.contains("launcher") && !fileName.contains("unins") -> 75
+
+        // High priority: probable main executables
+        baseName.length >= 4 && !isSystemExecutable(fileName) -> 70
+
+        // Medium priority: any non-system executable
+        !isSystemExecutable(fileName) -> 50
+
+        // Low priority: system/utility executables
+        else -> 10
+    }
+}
+
+/**
+ * Checks if an executable is likely a system/utility file
+ */
+private fun isSystemExecutable(fileName: String): Boolean {
+    val systemKeywords = listOf(
+        "unins", "setup", "install", "config", "crash", "handler",
+        "viewer", "compiler", "tool", "redist", "vcredist", "directx",
+        "steam", "origin", "uplay", "epic", "battlenet"
+    )
+
+    return systemKeywords.any { fileName.contains(it) }
 }

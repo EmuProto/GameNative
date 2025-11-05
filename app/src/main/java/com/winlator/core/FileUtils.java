@@ -342,6 +342,16 @@ public abstract class FileUtils {
         }
     }
 
+    public static long getSize(File file) {
+        if (file == null || !file.exists()) return 0;
+        if (file.isFile()) return file.length();     // fast path
+
+        // directory walk (re-uses your callback helper)
+        final long[] total = {0};
+        getSize(file, size -> total[0] += size);
+        return total[0];
+    }
+
     public static long getInternalStorageSize() {
         File dataDir = Environment.getDataDirectory();
         StatFs stat = new StatFs(dataDir.getPath());

@@ -1,6 +1,7 @@
 package app.gamenative.ui.component.dialog
 
 import android.content.res.Configuration
+import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Gamepad
 import androidx.compose.material3.AlertDialog
@@ -25,8 +26,10 @@ fun MessageDialog(
     onDismissRequest: (() -> Unit)? = null,
     onConfirmClick: (() -> Unit)? = null,
     onDismissClick: (() -> Unit)? = null,
+    onActionClick: (() -> Unit)? = null,
     confirmBtnText: String = "Confirm",
     dismissBtnText: String = "Dismiss",
+    actionBtnText: String? = null,
     icon: ImageVector? = null,
     title: String? = null,
     message: String? = null,
@@ -66,9 +69,19 @@ fun MessageDialog(
                     }
                 },
                 confirmButton = {
-                    onConfirmClick?.let {
-                        TextButton(onClick = it) {
-                            Text(confirmBtnText)
+                    Row {
+                        // Action button (displayed first if available)
+                        if (actionBtnText != null && onActionClick != null) {
+                            TextButton(onClick = onActionClick) {
+                                Text(actionBtnText)
+                            }
+                        }
+
+                        // Confirm button
+                        onConfirmClick?.let {
+                            TextButton(onClick = it) {
+                                Text(confirmBtnText)
+                            }
                         }
                     }
                 },
@@ -96,6 +109,8 @@ private fun Preview_MessageDialog() {
             onDismissRequest = {},
             onDismissClick = {},
             onConfirmClick = {},
+            onActionClick = {},
+            actionBtnText = "Action",
         )
     }
 }

@@ -75,6 +75,7 @@ data class ContainerData(
     val emulateKeyboardMouse: Boolean = false,
     /** Button->Binding name map (JSON string) for emulation UI persistence **/
     val controllerEmulationBindings: String = "",
+    val forceDlc: Boolean = false,
 ) {
     companion object {
         val Saver = mapSaver(
@@ -124,6 +125,7 @@ data class ContainerData(
                     "language" to state.language,
                     "emulateKeyboardMouse" to state.emulateKeyboardMouse,
                     "controllerEmulationBindings" to state.controllerEmulationBindings,
+                    "forceDlc" to state.forceDlc,
                 )
             },
             restore = { savedMap ->
@@ -172,6 +174,7 @@ data class ContainerData(
                     language = (savedMap["language"] as? String) ?: "english",
                     emulateKeyboardMouse = (savedMap["emulateKeyboardMouse"] as? Boolean) ?: false,
                     controllerEmulationBindings = (savedMap["controllerEmulationBindings"] as? String) ?: "",
+                    forceDlc = (savedMap["forceDlc"] as? Boolean) ?: false,
                 )
             },
         )

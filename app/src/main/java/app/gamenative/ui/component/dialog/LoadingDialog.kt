@@ -16,6 +16,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import app.gamenative.ui.theme.PluviaTheme
+import kotlin.math.min
+import kotlin.math.roundToInt
 
 /**
  * @param progress A value between 0 and 1 (inclusive), if the value is below 0 then the bar is
@@ -43,6 +45,7 @@ fun LoadingDialog(
                         Text(message)
                         Spacer(modifier = Modifier.height(16.dp))
                         if (progress >= 0) {
+                            Text(min(100, (progress * 100.0).roundToInt()).toString() + "%")
                             LinearProgressIndicator(
                                 progress = { progress },
                             )

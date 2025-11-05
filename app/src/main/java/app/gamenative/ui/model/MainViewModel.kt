@@ -172,6 +172,10 @@ class MainViewModel @Inject constructor(
         _state.update { it.copy(loadingDialogProgress = value) }
     }
 
+    fun setLoadingDialogMessage(value: String) {
+        _state.update { it.copy(loadingDialogMessage = value) }
+    }
+
     fun setHasLaunched(value: Boolean) {
         _state.update { it.copy(hasLaunched = value) }
     }
@@ -242,6 +246,9 @@ class MainViewModel @Inject constructor(
 
     fun exitSteamApp(context: Context, appId: String) {
         viewModelScope.launch {
+            bootingSplashTimeoutJob?.cancel()
+            bootingSplashTimeoutJob = null
+            setShowBootingSplash(false)
             // Check if we have a temporary override before doing anything
             val hadTemporaryOverride = IntentLaunchManager.hasTemporaryOverride(appId)
 

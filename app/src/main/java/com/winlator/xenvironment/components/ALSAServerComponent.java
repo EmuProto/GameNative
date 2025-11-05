@@ -9,6 +9,7 @@ import com.winlator.xconnector.UnixSocketConfig;
 import com.winlator.xconnector.XConnectorEpoll;
 import com.winlator.xenvironment.EnvironmentComponent;
 import com.winlator.alsaserver.ALSAClient;
+import com.winlator.xenvironment.ImageFs;
 
 public class ALSAServerComponent extends EnvironmentComponent {
     private XConnectorEpoll connector;
@@ -26,7 +27,9 @@ public class ALSAServerComponent extends EnvironmentComponent {
             return;
         }
         ALSAClient.assignFramesPerBuffer(this.environment.getContext());
-        XConnectorEpoll xConnectorEpoll = new XConnectorEpoll(this.socketConfig, new ALSAClientConnectionHandler(this.options), new ALSARequestHandler());
+        ImageFs imagefs = ImageFs.find(this.environment.getContext());
+
+        XConnectorEpoll xConnectorEpoll = new XConnectorEpoll(this.socketConfig, new ALSAClientConnectionHandler(this.options, imagefs.getVariant()), new ALSARequestHandler());
         this.connector = xConnectorEpoll;
         xConnectorEpoll.setMultithreadedClients(true);
         this.connector.start();
