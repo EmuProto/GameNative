@@ -476,6 +476,9 @@ class SteamService : Service(), IChallengeUrlChanged {
             val ownedDlc  = runBlocking { getOwnedAppDlc(appId) }
             val preferredLanguage = PrefManager.containerLanguage
 
+            // If the game ships any 64-bit depot, prefer those and ignore x86 ones
+            val has64Bit = appInfo.depots.values.any { it.osArch == OSArch.Arch64 }
+
             return appInfo.depots
                 .asSequence()
                 .filter { (_, depot) ->
@@ -489,8 +492,14 @@ class SteamService : Service(), IChallengeUrlChanged {
                                 (!depot.osList.contains(OS.linux) && !depot.osList.contains(OS.macos))))
                         return@filter false
                     // 3. 64-bit or indeterminate
-                    if (!(depot.osArch == OSArch.Arch64 || depot.osArch == OSArch.Unknown || depot.osArch == OSArch.Arch32))
-                        return@filter false
+                    // Arch selection: allow 64-bit and Unknown always.
+                    // Allow 32-bit only when no 64-bit depot exists.
+                    val archOk = when (depot.osArch) {
+                        OSArch.Arch64, OSArch.Unknown -> true
+                        OSArch.Arch32 -> !has64Bit
+                        else -> false
+                    }
+                    if (!archOk) return@filter false
                     // 4. DLC you actually own
                     if (depot.dlcAppId != INVALID_APP_ID && !ownedDlc.containsKey(depot.depotId))
                         return@filter false
