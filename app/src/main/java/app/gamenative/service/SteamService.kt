@@ -610,7 +610,19 @@ class SteamService : Service(), IChallengeUrlChanged {
             // 5️⃣ Executable | CustomExecutable flag
             if (hasExeFlag)                     s += 50
 
+            Timber.i("Score for $path: $s")
+
             return s
+        }
+
+        fun FileData.isStub(): Boolean {
+            /* stub detector (same short rules) */
+            val generic = Regex("^[a-z]\\d{1,3}\\.exe$", RegexOption.IGNORE_CASE)
+            val bad     = listOf("launcher","steam","crash","handler","setup","unins","eac")
+            val n = fileName.lowercase()
+            val stub = generic.matches(n) || bad.any { it in n } || totalSize < 1_000_000
+            if (stub) Timber.d("Stub filtered: $fileName  size=$totalSize")
+            return stub
         }
 
         /** select the primary binary */
@@ -652,16 +664,6 @@ class SteamService : Service(), IChallengeUrlChanged {
 
             Timber.i("Launch targets from appinfo: $launchTargets")
 
-            /* stub detector (same short rules) */
-            val generic = Regex("^[a-z]\\d{1,3}\\.exe$", RegexOption.IGNORE_CASE)
-            val bad     = listOf("launcher","steam","crash","handler","setup","unins","eac")
-            fun FileData.isStub(): Boolean {
-                val n = fileName.lowercase()
-                val stub = generic.matches(n) || bad.any { it in n } || totalSize < 1_000_000
-                if (stub) Timber.d("Stub filtered: $fileName  size=$totalSize")
-                return stub
-            }
-
             /* ---------------------------------------------------------- */
             val flagged = mutableListOf<Pair<FileData, Long>>()   // (file, depotSize)
             var largestDepotSize = 0L
@@ -691,9 +693,17 @@ class SteamService : Service(), IChallengeUrlChanged {
             Timber.i("Flagged executable candidates: ${flagged.map { it.first.fileName }}")
 
             /* 2️⃣ scorer (unchanged) */
-            choosePrimaryExe(flagged.map { it.first }, installDir.lowercase())?.let {
+            choosePrimaryExe(
+                flagged
+                    .map { it.first }
+                    .let { pool ->
+                        val noStubs = pool.filterNot { it.isStub() }
+                        if (noStubs.isNotEmpty()) noStubs else pool
+                    },
+                installDir.lowercase()
+            )?.let {
                 Timber.i("Picked via scorer: ${it.fileName}")
-                return it.fileName.replace('\\','/').toString()
+                return it.fileName.replace('\\', '/')
             }
 
             /* 3️⃣ fallback: biggest exe from the biggest depot */
@@ -1647,6 +1657,72 @@ class SteamService : Service(), IChallengeUrlChanged {
                 val remoteManifest = remoteSteamApp.depots[depotId]?.manifests?.get(branch)
                 val localManifest  =  localSteamApp .depots[depotId]?.manifests?.get(branch)
                 remoteManifest?.gid != localManifest?.gid
+            }
+        }
+
+        suspend fun checkDlcOwnershipViaPICSBatch(dlcAppIds: Set<Int>): Set<Int> {
+            if (dlcAppIds.isEmpty()) return emptySet()
+
+            val steamApps = instance?._steamApps ?: return emptySet()
+
+            try {
+                // Step 1: Get access tokens for all DLC appIds at once
+                val tokens = steamApps.picsGetAccessTokens(
+                    appIds = dlcAppIds.toList(),
+                    packageIds = emptyList()
+                ).await()
+
+                Timber.d("Access tokens response:")
+                Timber.d("  - Granted tokens: ${tokens.appTokens.keys}")
+                Timber.d("  - Denied tokens: ${tokens.appTokensDenied}")
+
+                // Step 2: Filter to only appIds that have tokens (we own them)
+                val ownedAppIds = tokens.appTokens.keys.filter { it in dlcAppIds }.toSet()
+
+                Timber.d("Owned appIds (from tokens): $ownedAppIds")
+
+                if (ownedAppIds.isEmpty()) {
+                    Timber.w("No owned DLCs found via access tokens")
+                    return emptySet()
+                }
+
+                // Step 3: Create PICSRequests for all owned appIds
+                val picsRequests = ownedAppIds.map { appId ->
+                    val token = tokens.appTokens[appId] ?: return@map null
+                    PICSRequest(id = appId, accessToken = token)
+                }.filterNotNull()
+
+                Timber.d("Created ${picsRequests.size} PICS requests")
+
+                if (picsRequests.isEmpty()) return emptySet()
+
+                // Step 4: Query PICS for all apps at once (batch them)
+                // Note: Steam has limits, so you might need to chunk if > 100 apps
+                val chunkSize = 100
+                val allOwnedAppIds = mutableSetOf<Int>()
+
+                picsRequests.chunked(chunkSize).forEach { chunk ->
+                    Timber.d("Querying PICS chunk with ${chunk.size} apps")
+                    val callback = steamApps.picsGetProductInfo(
+                        apps = chunk,
+                        packages = emptyList()
+                    ).await()
+
+                    // Collect all appIds that returned results
+                    callback.results.forEach { picsCallback ->
+                        val returnedAppIds = picsCallback.apps.keys
+                        Timber.d("  PICS result: ${returnedAppIds.size} apps returned")
+                        allOwnedAppIds.addAll(picsCallback.apps.keys)
+                    }
+                }
+
+                Timber.i("Final owned DLC appIds: $allOwnedAppIds")
+                Timber.i("Total owned: ${allOwnedAppIds.size} out of ${dlcAppIds.size} checked")
+
+                return allOwnedAppIds
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to check DLC ownership via PICS batch for ${dlcAppIds.size} appIds")
+                return emptySet()
             }
         }
     }
