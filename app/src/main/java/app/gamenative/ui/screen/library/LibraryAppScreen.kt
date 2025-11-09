@@ -209,6 +209,8 @@ fun AppScreen(
         mutableStateOf(MessageDialogState(false))
     }
 
+    var pendingUpdateVerifyOperation by rememberSaveable { mutableStateOf<AppOptionMenuType?>(null) }
+
     var showConfigDialog by rememberSaveable { mutableStateOf(false) }
 
     var containerData by rememberSaveable(stateSaver = ContainerData.Saver) {
@@ -488,6 +490,55 @@ fun AppScreen(
             }
         }
 
+        DialogType.UPDATE_VERIFY_CONFIRM -> {
+            onDismissRequest = { 
+                msgDialogState = MessageDialogState(false)
+                pendingUpdateVerifyOperation = null
+            }
+            onDismissClick = { 
+                msgDialogState = MessageDialogState(false)
+                pendingUpdateVerifyOperation = null
+            }
+            onConfirmClick = {
+                msgDialogState = MessageDialogState(false)
+                val operation = pendingUpdateVerifyOperation
+                pendingUpdateVerifyOperation = null
+                
+                if (operation != null) {
+                    CoroutineScope(Dispatchers.IO).launch {
+                        val container = ContainerUtils.getOrCreateContainer(context, appId)
+                        downloadInfo = SteamService.downloadApp(gameId)
+                        MarkerUtils.removeMarker(getAppDirPath(gameId), Marker.STEAM_DLL_REPLACED)
+                        MarkerUtils.removeMarker(getAppDirPath(gameId), Marker.STEAM_DLL_RESTORED)
+                        val prefixToPath: (String) -> String = { prefix ->
+                            PathType.from(prefix).toAbsPath(context, gameId, SteamService.userSteamId!!.accountID)
+                        }
+                        SteamService.forceSyncUserFiles(
+                            appId = gameId,
+                            prefixToPath = prefixToPath,
+                            overrideLocalChangeNumber = -1
+                        ).await()
+                        container.isNeedsUnpacking = true
+                        container.saveData()
+                    }
+                }
+            }
+        }
+
+        DialogType.RESET_CONTAINER_CONFIRM -> {
+            onDismissRequest = { msgDialogState = MessageDialogState(false) }
+            onDismissClick = { msgDialogState = MessageDialogState(false) }
+            onConfirmClick = {
+                msgDialogState = MessageDialogState(false)
+                // Reset container configuration to the app's current default settings,
+                // but keep the existing drives mapping so the game path remains mounted.
+                val container = ContainerUtils.getOrCreateContainer(context, appId)
+                val defaults = ContainerUtils.getDefaultContainerData()
+                val adjusted = defaults.copy(drives = container.drives)
+                ContainerUtils.applyToContainer(context, container, adjusted)
+            }
+        }
+
         else -> {
             onDismissRequest = null
             onDismissClick = null
@@ -685,12 +736,14 @@ fun AppScreen(
                             AppMenuOption(
                                 AppOptionMenuType.ResetToDefaults,
                                 onClick = {
-                                    // Reset container configuration to the app's current default settings,
-                                    // but keep the existing drives mapping so the game path remains mounted.
-                                    val container = ContainerUtils.getOrCreateContainer(context, appId)
-                                    val defaults = ContainerUtils.getDefaultContainerData()
-                                    val adjusted = defaults.copy(drives = container.drives)
-                                    ContainerUtils.applyToContainer(context, container, adjusted)
+                                    msgDialogState = MessageDialogState(
+                                        visible = true,
+                                        type = DialogType.RESET_CONTAINER_CONFIRM,
+                                        title = "Reset Container",
+                                        message = "This will reset your container to the default configuration.",
+                                        confirmBtnText = "Continue",
+                                        dismissBtnText = "Cancel",
+                                    )
                                 },
                             ),
                             AppMenuOption(
@@ -717,43 +770,29 @@ fun AppScreen(
                             AppMenuOption(
                                 AppOptionMenuType.VerifyFiles,
                                 onClick = {
-                                    CoroutineScope(Dispatchers.IO).launch {
-                                        val container = ContainerUtils.getOrCreateContainer(context, appId)
-                                        downloadInfo = SteamService.downloadApp(gameId)
-                                        MarkerUtils.removeMarker(getAppDirPath(gameId), Marker.STEAM_DLL_REPLACED)
-                                        MarkerUtils.removeMarker(getAppDirPath(gameId), Marker.STEAM_DLL_RESTORED)
-                                        val prefixToPath: (String) -> String = { prefix ->
-                                            PathType.from(prefix).toAbsPath(context, gameId, SteamService.userSteamId!!.accountID)
-                                        }
-                                        SteamService.forceSyncUserFiles(
-                                            appId = gameId,
-                                            prefixToPath = prefixToPath,
-                                            overrideLocalChangeNumber = -1
-                                        ).await()
-                                        container.isNeedsUnpacking = true
-                                        container.saveData()
-                                    }
+                                    pendingUpdateVerifyOperation = AppOptionMenuType.VerifyFiles
+                                    msgDialogState = MessageDialogState(
+                                        visible = true,
+                                        type = DialogType.UPDATE_VERIFY_CONFIRM,
+                                        title = "Verify Files",
+                                        message = "Please ensure your saves are uploaded to the cloud or backed up before verifying, as they may be overwritten otherwise.",
+                                        confirmBtnText = "Continue",
+                                        dismissBtnText = "Cancel",
+                                    )
                                 },
                             ),
                             AppMenuOption(
                                 AppOptionMenuType.Update,
                                 onClick = {
-                                    CoroutineScope(Dispatchers.IO).launch {
-                                        val container = ContainerUtils.getOrCreateContainer(context, appId)
-                                        downloadInfo = SteamService.downloadApp(gameId)
-                                        MarkerUtils.removeMarker(getAppDirPath(gameId), Marker.STEAM_DLL_REPLACED)
-                                        MarkerUtils.removeMarker(getAppDirPath(gameId), Marker.STEAM_DLL_RESTORED)
-                                        val prefixToPath: (String) -> String = { prefix ->
-                                            PathType.from(prefix).toAbsPath(context, gameId, SteamService.userSteamId!!.accountID)
-                                        }
-                                        SteamService.forceSyncUserFiles(
-                                            appId = gameId,
-                                            prefixToPath = prefixToPath,
-                                            overrideLocalChangeNumber = -1
-                                        ).await()
-                                        container.isNeedsUnpacking = true
-                                        container.saveData()
-                                    }
+                                    pendingUpdateVerifyOperation = AppOptionMenuType.Update
+                                    msgDialogState = MessageDialogState(
+                                        visible = true,
+                                        type = DialogType.UPDATE_VERIFY_CONFIRM,
+                                        title = "Update",
+                                        message = "Please ensure your saves are uploaded to the cloud or backed up before updating, as they may be overwritten otherwise.",
+                                        confirmBtnText = "Continue",
+                                        dismissBtnText = "Cancel",
+                                    )
                                 },
                             ),
 //                            *(
