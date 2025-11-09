@@ -31,6 +31,8 @@ import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.List;
 
+import app.gamenative.PluviaApp;
+import app.gamenative.events.AndroidEvent;
 import app.gamenative.service.SteamService;
 
 public class GlibcProgramLauncherComponent extends GuestProgramLauncherComponent {
@@ -69,6 +71,7 @@ public class GlibcProgramLauncherComponent extends GuestProgramLauncherComponent
             extractBox64Files();
             copyDefaultBox64RCFile();
             if (preUnpack != null) preUnpack.run();
+            PluviaApp.events.emitJava(new AndroidEvent.SetBootingSplashText("Launching game..."));
             pid = execGuestProgram();
             Log.d("GlibcProgramLauncherComponent", "Process " + pid + " started");
             SteamService.setGameRunning(true);

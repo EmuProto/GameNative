@@ -735,6 +735,7 @@ fun PluviaMain(
         Box(modifier = Modifier.zIndex(10f)) {
             BootingSplash(
                 visible = state.showBootingSplash,
+                text = state.bootingSplashText,
                 onBootCompleted = {
                     viewModel.setShowBootingSplash(false)
                 },
@@ -932,7 +933,8 @@ fun preLaunchApp(
                 context = context,
             ).await()
         }
-        setLoadingMessage("Installing...")
+        val loadingMessage = if (container.containerVariant.equals(Container.GLIBC)) "Installing glibc components..." else "Installing Bionic components..."
+        setLoadingMessage(loadingMessage)
         val imageFsInstallSuccess =
             ImageFsInstaller.installIfNeededFuture(context, context.assets, container) { progress ->
                 // Log.d("XServerScreen", "$progress")
