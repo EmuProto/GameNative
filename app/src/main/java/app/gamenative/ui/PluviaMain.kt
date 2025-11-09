@@ -735,6 +735,7 @@ fun PluviaMain(
         Box(modifier = Modifier.zIndex(10f)) {
             BootingSplash(
                 visible = state.showBootingSplash,
+                text = state.bootingSplashText,
                 onBootCompleted = {
                     viewModel.setShowBootingSplash(false)
                 },

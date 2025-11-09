@@ -31,6 +31,7 @@ import kotlin.random.Random
 @Composable
 fun BootingSplash(
     visible: Boolean = true,
+    text: String = "Booting...",
     onBootCompleted: () -> Unit = {}
 ) {
     // Tailwind-style “animate-pulse”: opacity 0.3 → 0.5 → 0.3
@@ -120,7 +121,7 @@ fun BootingSplash(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "Booting...",
+                    text = text,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center

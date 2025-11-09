@@ -109,11 +109,16 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    private val onSetBootingSplashText: (AndroidEvent.SetBootingSplashText) -> Unit = {
+        setBootingSplashText(it.text)
+    }
+
     private var bootingSplashTimeoutJob: Job? = null
 
     init {
         PluviaApp.events.on<AndroidEvent.BackPressed, Unit>(onBackPressed)
         PluviaApp.events.on<AndroidEvent.ExternalGameLaunch, Unit>(onExternalGameLaunch)
+        PluviaApp.events.on<AndroidEvent.SetBootingSplashText, Unit>(onSetBootingSplashText)
         PluviaApp.events.on<SteamEvent.Connected, Unit>(onSteamConnected)
         PluviaApp.events.on<SteamEvent.Disconnected, Unit>(onSteamDisconnected)
         PluviaApp.events.on<SteamEvent.LogonStarted, Unit>(onLoggingIn)
@@ -136,6 +141,7 @@ class MainViewModel @Inject constructor(
     override fun onCleared() {
         PluviaApp.events.off<AndroidEvent.BackPressed, Unit>(onBackPressed)
         PluviaApp.events.off<AndroidEvent.ExternalGameLaunch, Unit>(onExternalGameLaunch)
+        PluviaApp.events.off<AndroidEvent.SetBootingSplashText, Unit>(onSetBootingSplashText)
         PluviaApp.events.off<SteamEvent.Connected, Unit>(onSteamConnected)
         PluviaApp.events.off<SteamEvent.Disconnected, Unit>(onSteamDisconnected)
         PluviaApp.events.off<SteamEvent.LogonEnded, Unit>(onLogonEnded)
@@ -182,6 +188,10 @@ class MainViewModel @Inject constructor(
 
     fun setShowBootingSplash(value: Boolean) {
         _state.update { it.copy(showBootingSplash = value) }
+    }
+
+    fun setBootingSplashText(value: String) {
+        _state.update { it.copy(bootingSplashText = value) }
     }
 
     fun setCurrentScreen(currentScreen: String?) {

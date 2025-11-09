@@ -1333,6 +1333,7 @@ private fun unpackExecutableFile(
     var output = StringBuilder()
     if (needsUnpacking || containerVariantChanged){
         try {
+            PluviaApp.events.emit(AndroidEvent.SetBootingSplashText("Installing Mono..."))
             val monoCmd = "wine msiexec /i Z:\\opt\\mono-gecko-offline\\wine-mono-9.0.0-x86.msi && wineserver -k"
             Timber.i("Install mono command $monoCmd")
             val monoOutput = guestProgramLauncherComponent.execShellCommand(monoCmd)
@@ -1350,6 +1351,7 @@ private fun unpackExecutableFile(
         val executableFile = getSteamlessTarget(appId, container, appLaunchInfo)
 
         try {
+            PluviaApp.events.emit(AndroidEvent.SetBootingSplashText("Handling DRM..."))
             // a:/.../GameDir/orig_dll_path.txt  (same dir as the EXE inside A:)
             val origTxtFile  = File("${imageFs.wineprefix}/dosdevices/a:/orig_dll_path.txt")
 
@@ -1393,6 +1395,7 @@ private fun unpackExecutableFile(
 
         output = StringBuilder()
         try {
+            PluviaApp.events.emit(AndroidEvent.SetBootingSplashText("Handling DRM..."))
             val slCmd = "wine z:\\Steamless\\Steamless.CLI.exe $executableFile"
             Timber.i("Running shell command $slCmd")
             val slOutput = guestProgramLauncherComponent.execShellCommand(slCmd)
