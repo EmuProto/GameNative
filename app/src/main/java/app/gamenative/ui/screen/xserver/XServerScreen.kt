@@ -1319,6 +1319,121 @@ private fun exit(winHandler: WinHandler?, environment: XEnvironment?, onExit: ()
     navigateBack()
 }
 
+/**
+ * Installs redistributables (vcredist, physx, XNA) from _CommonRedist folder
+ * if shared depots are present and the redistributable executables exist.
+ */
+private fun installRedistributables(
+    context: Context,
+    container: Container,
+    appId: String,
+    guestProgramLauncherComponent: GuestProgramLauncherComponent,
+    imageFs: ImageFs,
+) {
+    try {
+        val steamAppId = ContainerUtils.extractGameIdFromContainerId(appId)
+        
+        // Get shared depots to determine if redistributables are needed
+        val downloadableDepots = SteamService.getDownloadableDepots(steamAppId)
+        val sharedDepots = downloadableDepots.filter { (_, depotInfo) ->
+            val manifest = depotInfo.manifests["public"]
+            manifest == null || manifest.gid == 0L
+        }
+        
+        if (sharedDepots.isEmpty()) {
+            Timber.i("No shared depots found, skipping redistributable installation")
+            return
+        }
+        
+        Timber.i("Found ${sharedDepots.size} shared depot(s), checking for redistributables")
+        
+        // Get game directory path
+        val gameDirPath = SteamService.getAppDirPath(steamAppId)
+        val commonRedistDir = File(gameDirPath, "_CommonRedist")
+        
+        if (!commonRedistDir.exists() || !commonRedistDir.isDirectory()) {
+            Timber.i("_CommonRedist directory not found at ${commonRedistDir.absolutePath}, skipping redistributable installation")
+            return
+        }
+        
+        // Get the drive letter for the game directory
+        val drives = container.drives
+        val driveIndex = drives.indexOf(gameDirPath)
+        val drive = if (driveIndex > 1) {
+            drives[driveIndex - 2]
+        } else {
+            Timber.e("Could not locate game drive for redistributables")
+            return
+        }
+        
+        // Find and install vcredist executables (only 64-bit: VC_redist.x64.exe)
+        val vcredistDir = File(commonRedistDir, "vcredist")
+        if (vcredistDir.exists() && vcredistDir.isDirectory()) {
+            vcredistDir.walkTopDown()
+                .filter { it.isFile && it.name.equals("VC_redist.x64.exe", ignoreCase = true) }
+                .forEach { exeFile ->
+                    try {
+                        val relativePath = exeFile.relativeTo(commonRedistDir).path.replace('/', '\\')
+                        val winePath = "$drive:\\_CommonRedist\\$relativePath"
+                        PluviaApp.events.emit(AndroidEvent.SetBootingSplashText("Installing Visual C++ Redistributable..."))
+                        Timber.i("Installing vcredist: $winePath")
+                        val cmd = "wine $winePath /quiet /norestart && wineserver -k"
+                        val output = guestProgramLauncherComponent.execShellCommand(cmd)
+                        Timber.i("vcredist installation output: $output")
+                    } catch (e: Exception) {
+                        Timber.e(e, "Failed to install vcredist ${exeFile.name}")
+                    }
+                }
+        }
+        
+        // Find and install PhysX redistributables (.msi files starting with "PhysX")
+        val physxDir = File(commonRedistDir, "PhysX")
+        if (physxDir.exists() && physxDir.isDirectory()) {
+            physxDir.walkTopDown()
+                .filter { it.isFile && it.name.startsWith("PhysX", ignoreCase = true) && 
+                         it.name.endsWith(".msi", ignoreCase = true) }
+                .forEach { msiFile ->
+                    try {
+                        val relativePath = msiFile.relativeTo(commonRedistDir).path.replace('/', '\\')
+                        val winePath = "$drive:\\_CommonRedist\\$relativePath"
+                        PluviaApp.events.emit(AndroidEvent.SetBootingSplashText("Installing PhysX..."))
+                        Timber.i("Installing PhysX: $winePath")
+                        val cmd = "wine msiexec /i $winePath /quiet /norestart && wineserver -k"
+                        val output = guestProgramLauncherComponent.execShellCommand(cmd)
+                        Timber.i("PhysX installation output: $output")
+                    } catch (e: Exception) {
+                        Timber.e(e, "Failed to install PhysX ${msiFile.name}")
+                    }
+                }
+        }
+        
+        // Find and install XNA Framework redistributables (.msi files starting with "xna")
+        val xnaDir = File(commonRedistDir, "xnafx")
+        if (xnaDir.exists() && xnaDir.isDirectory()) {
+            xnaDir.walkTopDown()
+                .filter { it.isFile && it.name.startsWith("xna", ignoreCase = true) && 
+                         it.name.endsWith(".msi", ignoreCase = true) }
+                .forEach { msiFile ->
+                    try {
+                        val relativePath = msiFile.relativeTo(commonRedistDir).path.replace('/', '\\')
+                        val winePath = "$drive:\\_CommonRedist\\$relativePath"
+                        PluviaApp.events.emit(AndroidEvent.SetBootingSplashText("Installing XNA Framework..."))
+                        Timber.i("Installing XNA: $winePath")
+                        val cmd = "wine msiexec /i $winePath /quiet /norestart && wineserver -k"
+                        val output = guestProgramLauncherComponent.execShellCommand(cmd)
+                        Timber.i("XNA installation output: $output")
+                    } catch (e: Exception) {
+                        Timber.e(e, "Failed to install XNA ${msiFile.name}")
+                    }
+                }
+        }
+        
+        Timber.i("Finished checking for redistributables")
+    } catch (e: Exception) {
+        Timber.e(e, "Error in installRedistributables: ${e.message}")
+    }
+}
+
 private fun unpackExecutableFile(
     context: Context,
     needsUnpacking: Boolean,
@@ -1341,6 +1456,13 @@ private fun unpackExecutableFile(
             Timber.i("Result of mono command " + output)
         } catch (e: Exception) {
             Timber.e("Error during mono installation: $e")
+        }
+        
+        // Install redistributables if shared depots are present
+        try {
+            installRedistributables(context, container, appId, guestProgramLauncherComponent, imageFs)
+        } catch (e: Exception) {
+            Timber.e(e, "Error installing redistributables: ${e.message}")
         }
     }
     if (!needsUnpacking){
