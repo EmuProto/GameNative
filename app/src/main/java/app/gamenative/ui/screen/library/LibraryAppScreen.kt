@@ -722,6 +722,14 @@ fun AppScreen(
                                         downloadInfo = SteamService.downloadApp(gameId)
                                         MarkerUtils.removeMarker(getAppDirPath(gameId), Marker.STEAM_DLL_REPLACED)
                                         MarkerUtils.removeMarker(getAppDirPath(gameId), Marker.STEAM_DLL_RESTORED)
+                                        val prefixToPath: (String) -> String = { prefix ->
+                                            PathType.from(prefix).toAbsPath(context, gameId, SteamService.userSteamId!!.accountID)
+                                        }
+                                        SteamService.forceSyncUserFiles(
+                                            appId = gameId,
+                                            prefixToPath = prefixToPath,
+                                            overrideLocalChangeNumber = -1
+                                        ).await()
                                         container.isNeedsUnpacking = true
                                         container.saveData()
                                     }
@@ -735,6 +743,14 @@ fun AppScreen(
                                         downloadInfo = SteamService.downloadApp(gameId)
                                         MarkerUtils.removeMarker(getAppDirPath(gameId), Marker.STEAM_DLL_REPLACED)
                                         MarkerUtils.removeMarker(getAppDirPath(gameId), Marker.STEAM_DLL_RESTORED)
+                                        val prefixToPath: (String) -> String = { prefix ->
+                                            PathType.from(prefix).toAbsPath(context, gameId, SteamService.userSteamId!!.accountID)
+                                        }
+                                        SteamService.forceSyncUserFiles(
+                                            appId = gameId,
+                                            prefixToPath = prefixToPath,
+                                            overrideLocalChangeNumber = -1
+                                        ).await()
                                         container.isNeedsUnpacking = true
                                         container.saveData()
                                     }

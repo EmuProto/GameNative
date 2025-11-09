@@ -126,13 +126,15 @@ fun SettingsGroupDebug() {
         }
     }
 
-    CrashLogDialog(
-        visible = showWineLogDialog && latestWineLogFile != null,
-        fileName = latestWineLogFile?.name ?: "wine_debug.log",
-        fileText = latestWineLogFile?.readText() ?: "Couldn't read Wine log.",
-        onSave = { latestWineLogFile?.let { file -> saveWineLogContract.launch(file.name) } },
-        onDismissRequest = { showWineLogDialog = false },
-    )
+    if (showWineLogDialog && latestWineLogFile != null) {
+        CrashLogDialog(
+            visible = showWineLogDialog && latestWineLogFile != null,
+            fileName = latestWineLogFile?.name ?: "wine_debug.log",
+            fileText = latestWineLogFile?.readText() ?: "Couldn't read Wine log.",
+            onSave = { latestWineLogFile?.let { file -> saveWineLogContract.launch(file.name) } },
+            onDismissRequest = { showWineLogDialog = false },
+        )
+    }
 
     SettingsGroup(title = { Text(text = "Debug") }) {
         // Link to open channel selector
