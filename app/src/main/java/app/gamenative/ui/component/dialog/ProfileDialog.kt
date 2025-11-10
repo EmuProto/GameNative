@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.AirplaneTicket
 import androidx.compose.material.icons.automirrored.filled.Help
 import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.automirrored.filled.Logout
@@ -40,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import app.gamenative.R
+import app.gamenative.service.SteamService
 import app.gamenative.ui.screen.PluviaScreen
 import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.ui.util.SteamIconImage
@@ -140,6 +142,14 @@ fun ProfileDialog(
                         Text(text = "Go Online")
                     }
                 } else {
+                    FilledTonalButton(modifier = Modifier.fillMaxWidth(), onClick = {
+                        SteamService.stop()
+                        onNavigateRoute(PluviaScreen.Home.route + "?offline=true")
+                    }) {
+                        Icon(imageVector = Icons.AutoMirrored.Filled.AirplaneTicket, contentDescription = null)
+                        Spacer(modifier = Modifier.size(ButtonDefaults.IconSize))
+                        Text(text = "Go Offline")
+                    }
                     FilledTonalButton(modifier = Modifier.fillMaxWidth(), onClick = onLogout) {
                         Icon(imageVector = Icons.AutoMirrored.Filled.Logout, contentDescription = null)
                         Spacer(modifier = Modifier.size(ButtonDefaults.IconSize))
