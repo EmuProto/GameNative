@@ -19,6 +19,7 @@ import app.gamenative.ui.data.MainState
 import app.gamenative.utils.IntentLaunchManager
 import app.gamenative.ui.screen.PluviaScreen
 import app.gamenative.utils.SteamUtils
+import app.gamenative.utils.UpdateInfo
 import com.materialkolor.PaletteStyle
 import com.winlator.xserver.Window
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -66,6 +67,13 @@ class MainViewModel @Inject constructor(
     val isOffline: StateFlow<Boolean> get() = _offline
 
     fun setOffline(value: Boolean) { _offline.value = value }
+
+    private val _updateInfo = MutableStateFlow<UpdateInfo?>(null)
+    val updateInfo: StateFlow<UpdateInfo?> = _updateInfo.asStateFlow()
+
+    fun setUpdateInfo(info: UpdateInfo?) {
+        _updateInfo.value = info
+    }
 
     private val onSteamConnected: (SteamEvent.Connected) -> Unit = {
         Timber.i("Received is connected")

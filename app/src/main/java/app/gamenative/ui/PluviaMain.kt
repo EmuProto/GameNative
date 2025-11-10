@@ -71,6 +71,9 @@ import app.gamenative.utils.ContainerMigrator
 import app.gamenative.utils.ContainerUtils
 import app.gamenative.utils.GameFeedbackUtils
 import app.gamenative.utils.IntentLaunchManager
+import app.gamenative.utils.UpdateChecker
+import app.gamenative.utils.UpdateInfo
+import app.gamenative.utils.UpdateInstaller
 import com.google.android.play.core.splitcompat.SplitCompat
 import com.winlator.container.Container
 import com.winlator.container.ContainerManager
@@ -111,6 +114,22 @@ fun PluviaMain(
     var isConnecting by rememberSaveable { mutableStateOf(false) }
 
     var gameBackAction by remember { mutableStateOf<() -> Unit?>({}) }
+    
+    var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
+    
+    // Check for updates on app start
+    LaunchedEffect(Unit) {
+        val checkedUpdateInfo = UpdateChecker.checkForUpdate(context)
+        if (checkedUpdateInfo != null) {
+            val appVersionCode = BuildConfig.VERSION_CODE
+            val serverVersionCode = checkedUpdateInfo.versionCode
+            Timber.i("Update check: app versionCode=$appVersionCode, server versionCode=$serverVersionCode")
+            if (appVersionCode < serverVersionCode) {
+                updateInfo = checkedUpdateInfo
+                viewModel.setUpdateInfo(checkedUpdateInfo)
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.uiEvent.collect { event ->
@@ -212,9 +231,20 @@ fun PluviaMain(
                                 Timber.i("Navigating to library")
                                 navController.navigate(PluviaScreen.Home.route)
 
-                                // If a crash happen, lets not ask for a tip yet.
-                                // Instead, ask the user to contribute their issues to be addressed.
-                                if (!state.annoyingDialogShown && state.hasCrashedLastStart) {
+                                // Check for update first
+                                val currentUpdateInfo = updateInfo
+                                if (currentUpdateInfo != null) {
+                                    viewModel.setAnnoyingDialogShown(true)
+                                    msgDialogState = MessageDialogState(
+                                        visible = true,
+                                        type = DialogType.APP_UPDATE,
+                                        title = "Update Available",
+                                        message = "A new version (${currentUpdateInfo.versionName}) is available!" +
+                                            (currentUpdateInfo.releaseNotes?.let { "\n\n$it" } ?: ""),
+                                        confirmBtnText = "Update",
+                                        dismissBtnText = "Later",
+                                    )
+                                } else if (!state.annoyingDialogShown && state.hasCrashedLastStart) {
                                     viewModel.setAnnoyingDialogShown(true)
                                     msgDialogState = MessageDialogState(
                                         visible = true,
@@ -636,6 +666,46 @@ fun PluviaMain(
                     IntentLaunchManager.clearTemporaryOverride(appId)
                 }
                 pendingSaveAppId = null
+                setMessageDialogState(MessageDialogState(false))
+            }
+        }
+
+        DialogType.APP_UPDATE -> {
+            onConfirmClick = {
+                setMessageDialogState(MessageDialogState(false))
+                val updateInfo = viewModel.updateInfo.value
+                if (updateInfo != null) {
+                    scope.launch {
+                        viewModel.setLoadingDialogVisible(true)
+                        viewModel.setLoadingDialogMessage("Downloading update...")
+                        viewModel.setLoadingDialogProgress(0f)
+                        
+                        val success = UpdateInstaller.downloadAndInstall(
+                            context = context,
+                            downloadUrl = updateInfo.downloadUrl,
+                            versionName = updateInfo.versionName,
+                            onProgress = { progress ->
+                                viewModel.setLoadingDialogProgress(progress)
+                            }
+                        )
+                        
+                        viewModel.setLoadingDialogVisible(false)
+                        if (!success) {
+                            msgDialogState = MessageDialogState(
+                                visible = true,
+                                type = DialogType.SYNC_FAIL,
+                                title = "Update Failed",
+                                message = "Failed to download or install the update. Please try again later.",
+                                dismissBtnText = context.getString(R.string.ok),
+                            )
+                        }
+                    }
+                }
+            }
+            onDismissClick = {
+                setMessageDialogState(MessageDialogState(false))
+            }
+            onDismissRequest = {
                 setMessageDialogState(MessageDialogState(false))
             }
         }
