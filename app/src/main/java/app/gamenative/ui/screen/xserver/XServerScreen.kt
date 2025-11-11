@@ -3,7 +3,6 @@ package app.gamenative.ui.screen.xserver
 import android.app.Activity
 import android.content.Context
 import android.os.Build
-import android.os.Looper
 import android.util.Log
 import android.view.View
 import android.view.WindowInsets
@@ -33,6 +32,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import app.gamenative.PluviaApp
 import app.gamenative.PrefManager
 import app.gamenative.data.LaunchInfo
+import app.gamenative.data.SteamApp
 import app.gamenative.events.AndroidEvent
 import app.gamenative.events.SteamEvent
 import app.gamenative.service.SteamService
@@ -284,7 +284,7 @@ fun XServerScreen(
                             } else {
                                 PostHog.capture(event = "game_closed")
                             }
-                            exit(xServerView!!.getxServer().winHandler, PluviaApp.xEnvironment, onExit, navigateBack)
+                            exit(xServerView!!.getxServer().winHandler, PluviaApp.xEnvironment, frameRating, currentAppInfo, onExit, navigateBack)
                         }
                     }
                 }
@@ -303,7 +303,7 @@ fun XServerScreen(
     DisposableEffect(lifecycleOwner) {
         val onActivityDestroyed: (AndroidEvent.ActivityDestroyed) -> Unit = {
             Timber.i("onActivityDestroyed")
-            exit(xServerView!!.getxServer().winHandler, PluviaApp.xEnvironment, onExit, navigateBack)
+            exit(xServerView!!.getxServer().winHandler, PluviaApp.xEnvironment, frameRating, currentAppInfo, onExit, navigateBack)
         }
         val onKeyEvent: (AndroidEvent.KeyEvent) -> Boolean = {
             val isKeyboard = Keyboard.isKeyboardDevice(it.event.device)
@@ -344,11 +344,11 @@ fun XServerScreen(
         }
         val onGuestProgramTerminated: (AndroidEvent.GuestProgramTerminated) -> Unit = {
             Timber.i("onGuestProgramTerminated")
-            exit(xServerView!!.getxServer().winHandler, PluviaApp.xEnvironment, onExit, navigateBack)
+            exit(xServerView!!.getxServer().winHandler, PluviaApp.xEnvironment, frameRating, currentAppInfo, onExit, navigateBack)
         }
         val onForceCloseApp: (SteamEvent.ForceCloseApp) -> Unit = {
             Timber.i("onForceCloseApp")
-            exit(xServerView!!.getxServer().winHandler, PluviaApp.xEnvironment, onExit, navigateBack)
+            exit(xServerView!!.getxServer().winHandler, PluviaApp.xEnvironment, frameRating, currentAppInfo, onExit, navigateBack)
         }
         val debugCallback = Callback<String> { outputLine ->
             Timber.i(outputLine ?: "")
@@ -429,15 +429,20 @@ fun XServerScreen(
                 getxServer().windowManager.addOnWindowModificationListener(
                     object : WindowManager.OnWindowModificationListener {
                         private fun changeFrameRatingVisibility(window: Window, property: Property?) {
+                            Timber.d("Window Property: windowId=${window.id}, propertyName=${property?.nameAsString()}, propertyValue=${property.toString()}")
                             if (frameRating == null) return
                             if (property != null) {
-                                if (frameRatingWindowId == -1 && window.attributes.isMapped() && property.nameAsString() == "_MESA_DRV") {
+                                if (frameRatingWindowId == -1 && (
+                                            property.nameAsString().contains("_UTIL_LAYER") ||
+                                            property.nameAsString().contains("_MESA_DRV") ||
+                                            container.containerVariant.equals(Container.GLIBC) && property.nameAsString().contains("_NET_WM_SURFACE"))) {
                                     frameRatingWindowId = window.id
                                     (context as? Activity)?.runOnUiThread {
                                         frameRating?.visibility = View.VISIBLE
                                     }
+                                    frameRating?.update()
                                 }
-                            } else if (window.id == frameRatingWindowId) {
+                            } else if (frameRatingWindowId != -1) {
                                 frameRatingWindowId = -1
                                 (context as? Activity)?.runOnUiThread {
                                     frameRating?.visibility = View.GONE
@@ -668,11 +673,11 @@ fun XServerScreen(
                     }
                 }
             }
+            frameRating = FrameRating(context)
+            frameRating?.setVisibility(View.GONE)
 
             if (container.isShowFPS()) {
                 Timber.i("Attempting to show FPS")
-                frameRating = FrameRating(context)
-                frameRating?.setVisibility(View.GONE)
                 frameRating?.let { frameLayout.addView(it) }
             }
 
@@ -1299,9 +1304,13 @@ private fun getSteamlessTarget(
     }
     return "$drive:\\${executablePath}"
 }
-private fun exit(winHandler: WinHandler?, environment: XEnvironment?, onExit: () -> Unit, navigateBack: () -> Unit) {
+private fun exit(winHandler: WinHandler?, environment: XEnvironment?, frameRating: FrameRating?, appInfo: SteamApp?, onExit: () -> Unit, navigateBack: () -> Unit) {
     Timber.i("Exit called")
-    PostHog.capture(event = "game_exited")
+    PostHog.capture(event = "game_exited",
+        properties = mapOf("game_name" to appInfo?.name.toString(),
+            "session_length" to frameRating!!.sessionLengthSec,
+            "avg_fps" to frameRating!!.avgFPS)
+    )
     winHandler?.stop()
     environment?.stopEnvironmentComponents()
     SteamService.isGameRunning = false
@@ -1315,6 +1324,7 @@ private fun exit(winHandler: WinHandler?, environment: XEnvironment?, onExit: ()
     PluviaApp.touchpadView = null
     // PluviaApp.touchMouse = null
     // PluviaApp.keyboard = null
+    frameRating?.writeSessionSummary()
     onExit()
     navigateBack()
 }
