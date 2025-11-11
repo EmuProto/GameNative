@@ -76,9 +76,6 @@ public class FrameRating extends FrameLayout implements Runnable {
                     minFPS = currentFPS;
                 }
 
-                // Log reading to logcat
-                Timber.d("FrameRating: fps=%d, reading_count=%d", currentFPS, readingCount);
-
                 lastReadingTime = time;
             }
 

@@ -429,7 +429,6 @@ fun XServerScreen(
                 getxServer().windowManager.addOnWindowModificationListener(
                     object : WindowManager.OnWindowModificationListener {
                         private fun changeFrameRatingVisibility(window: Window, property: Property?) {
-                            Timber.d("Window Property: windowId=${window.id}, propertyName=${property?.nameAsString()}, propertyValue=${property.toString()}")
                             if (frameRating == null) return
                             if (property != null) {
                                 if (frameRatingWindowId == -1 && (
