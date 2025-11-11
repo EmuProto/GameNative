@@ -1308,8 +1308,8 @@ private fun exit(winHandler: WinHandler?, environment: XEnvironment?, frameRatin
     Timber.i("Exit called")
     PostHog.capture(event = "game_exited",
         properties = mapOf("game_name" to appInfo?.name.toString(),
-            "session_length" to frameRating!!.sessionLengthSec,
-            "avg_fps" to frameRating!!.avgFPS,
+            "session_length" to (frameRating?.sessionLengthSec ?: 0),
+            "avg_fps" to (frameRating?.avgFPS ?: 0.0),
             "container_config" to container.containerJson)
     )
     winHandler?.stop()
