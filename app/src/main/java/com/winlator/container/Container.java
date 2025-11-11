@@ -893,6 +893,10 @@ public class Container {
         this.controllerEmulationBindings = bindings;
     }
 
+    public String getContainerJson() {
+        return FileUtils.readString(getConfigFile()).replace("\\u0000", "").replace("\u0000", "");
+    }
+
     public static String getFallbackCPUList() {
         String cpuList = "";
         int numProcessors = Runtime.getRuntime().availableProcessors();
